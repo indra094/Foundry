@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 
-from .config import settings
+from config import settings
 
 # Validate settings on startup
 settings.validate()

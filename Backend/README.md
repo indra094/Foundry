@@ -14,7 +14,7 @@
 2. **Create a virtual environment (optional but recommended):**
    ```powershell
    python -m venv venv
-   .\venv\Scripts\Activate
+   .\venv\bin\Activate.ps1
    ```
 
 3. **Install dependencies:**
