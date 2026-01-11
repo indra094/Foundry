@@ -22,7 +22,9 @@ app.add_middleware(
 async def root():
     return {"message": "Foundry Backend API is running"}
 
-# You can import routers here dynamically or explicitly
-# example:
-# from .AccountCreation import router as account_creation_router
-# app.include_router(account_creation_router.router)
+# Include routers
+from AccountCreation import router as account_router
+from FoundersList import router as founders_router
+
+app.include_router(account_router.router)
+app.include_router(founders_router.router)

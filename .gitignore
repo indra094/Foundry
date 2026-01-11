@@ -1,6 +1,7 @@
 .env
 Backend/venv
 Backend/__pycache__
+*.pyc
 node_modules
 build
 dist
