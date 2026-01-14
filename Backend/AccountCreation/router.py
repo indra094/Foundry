@@ -93,38 +93,20 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
 # POST /auth/google
 @router.post("/google", response_model=User)
 async def google_signup(db: Session = Depends(get_db)):
-    # Mock Google Auth - check if mock email exists
-    email = "alex@gmail.com"
+    # Mock Google Auth - default to Indra for demo
+    email = "indra094@gmail.com"
     user = db.query(UserModel).filter(UserModel.email == email).first()
     
     if not user:
-        timestamp = time.time()
+        # Fallback if seed failed for some reason, but should exist
+        timestamp = int(time.time())
         user = UserModel(
-            id=f"u_g_{int(timestamp)}",
-            full_name="Alex Google",
+            id=f"u_g_{timestamp}",
+            full_name="Indra Demo",
             email=email,
-            avatar_url="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80"
+            avatar_url="https://images.unsplash.com/photo-1519345182560-3f2917c472ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80"
         )
         db.add(user)
-        
-        # Default Org for Google User
-        org = OrganizationModel(
-            id=f"org_g_{int(timestamp)}",
-            name="Alex's AI Startup",
-            slug=f"org-g-{int(timestamp)}"
-        )
-        db.add(org)
-        
-        member = OrgMemberModel(
-            id=f"mem_g_{int(timestamp)}",
-            user_id=user.id,
-            org_id=org.id,
-            member_type="Founder",
-            role="CTO",
-            equity=100.0
-        )
-        db.add(member)
-        
         db.commit()
         db.refresh(user)
         
@@ -132,5 +114,6 @@ async def google_signup(db: Session = Depends(get_db)):
         id=user.id,
         fullName=user.full_name,
         email=user.email,
-        avatarUrl=user.avatar_url
+        avatarUrl=user.avatar_url,
+        role="Founder"
     )
