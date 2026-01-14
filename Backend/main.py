@@ -8,6 +8,11 @@ from config import settings
 # Validate settings on startup
 settings.validate()
 
+# Create database tables
+from database import engine, Base
+import models # Import models to register them with Base
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(title="Foundry Backend")
 
 app.add_middleware(

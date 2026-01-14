@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Founder as FounderModel
+from models import OrgMember as FounderModel
 import time
 
 router = APIRouter(prefix="/founders", tags=["Founders"])
@@ -32,7 +32,7 @@ class FounderCreate(BaseModel):
 
 @router.get("/", response_model=List[Founder])
 async def get_founders(db: Session = Depends(get_db)):
-    founders = db.query(FounderModel).all()
+    founders = db.query(FounderModel).filter(FounderModel.member_type == "Founder").all()
     # Map to schema if needed, but orm_mode handles it mostly
     # Need to map snake_case model to camelCase schema
     return [
@@ -51,7 +51,7 @@ async def get_founders(db: Session = Depends(get_db)):
 
 @router.get("/{founder_id}", response_model=Founder)
 async def get_founder(founder_id: str, db: Session = Depends(get_db)):
-    f = db.query(FounderModel).filter(FounderModel.id == founder_id).first()
+    f = db.query(FounderModel).filter(FounderModel.id == founder_id, FounderModel.member_type == "Founder").first()
     if not f:
         raise HTTPException(status_code=404, detail="Founder not found")
     return Founder(
@@ -78,7 +78,8 @@ async def add_founder(founder: FounderCreate, db: Session = Depends(get_db)):
         cash_contribution=founder.cashContribution,
         risk_tolerance=founder.riskTolerance,
         vesting_cliff=founder.vestingCliff,
-        status="Incomplete"
+        status="Incomplete",
+        member_type="Founder"
     )
     db.add(new_founder)
     db.commit()
@@ -97,7 +98,7 @@ async def add_founder(founder: FounderCreate, db: Session = Depends(get_db)):
 
 @router.put("/{founder_id}", response_model=Founder)
 async def update_founder(founder_id: str, updates: dict, db: Session = Depends(get_db)):
-    f = db.query(FounderModel).filter(FounderModel.id == founder_id).first()
+    f = db.query(FounderModel).filter(FounderModel.id == founder_id, FounderModel.member_type == "Founder").first()
     if not f:
         raise HTTPException(status_code=404, detail="Founder not found")
     

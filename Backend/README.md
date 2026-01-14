@@ -13,7 +13,8 @@
 
 2. **Create a virtual environment (optional but recommended):**
    ```powershell
-   python -m venv venv
+   & "C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe" -m venv venv
+
    .\venv\bin\Activate.ps1
    ```
 
