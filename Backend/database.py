@@ -14,7 +14,7 @@ load_dotenv()
 # DB_NAME = os.getenv("POSTGRES_DB", "foundry")
 
 # Fallback to SQLite correctly to avoid Windows install issues
-SQLALCHEMY_DATABASE_URL = "sqlite:///./foundry.db"
+SQLALCHEMY_DATABASE_URL = "sqlite:///./foundry_v2.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}

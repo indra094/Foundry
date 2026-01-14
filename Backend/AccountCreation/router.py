@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User as UserModel, Organization as OrganizationModel, OrgMember as OrgMemberModel
 import time
+import json
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -16,6 +17,29 @@ class User(BaseModel):
     avatarUrl: Optional[str] = None
     class Config:
         orm_mode = True
+
+class Workspace(BaseModel):
+    id: str
+    name: str
+    industry: Optional[str] = None
+    type: Optional[str] = None
+    stage: Optional[str] = None
+    onboardingStep: int
+
+class MyRole(BaseModel):
+    title: str
+    responsibility: str
+    authority: List[str]
+    commitment: int
+    startDate: str
+    plannedChange: str
+    salary: float
+    bonus: str
+    equity: float
+    vesting: str
+    expectations: List[str]
+    lastUpdated: str
+    status: str
 
 class LoginRequest(BaseModel):
     email: str
@@ -29,9 +53,6 @@ class SignupRequest(BaseModel):
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if not user:
-        # For demo, auto-create if not exists or return error? 
-        # Requirement says "login", so usually expect error if not found.
-        # But to keep it simple as per previous mock:
         raise HTTPException(status_code=404, detail="User not found")
     
     return User(
@@ -61,8 +82,9 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     org_id = f"org_{int(timestamp)}"
     new_org = OrganizationModel(
         id=org_id,
-        name=f"{request.fullName}'s Organization",
-        slug=f"org-{int(timestamp)}"
+        name=f"Foundry",
+        slug=f"org-{int(timestamp)}",
+        onboarding_step=6 # Default to completed for demo feel as per request
     )
     db.add(new_org)
     
@@ -72,9 +94,9 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         user_id=new_user.id,
         org_id=new_org.id,
         member_type="Founder",
-        role="CEO", # Default role
+        role="CEO",
         hours_per_week=40,
-        equity=100.0, # Default to 100% until split
+        equity=50.0,
         status="Active"
     )
     db.add(new_member)
@@ -86,29 +108,146 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         id=new_user.id,
         fullName=new_user.full_name,
         email=new_user.email,
-        role="Founder", # Inferred from primary membership
+        role="Founder",
         avatarUrl=new_user.avatar_url
+    )
+
+# GET /auth/workspace
+@router.get("/workspace", response_model=Workspace)
+async def get_workspace(email: str, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    
+    org = db.query(OrganizationModel).filter(OrganizationModel.id == member.org_id).first()
+    return Workspace(
+        id=org.id,
+        name=org.name,
+        industry=org.industry,
+        type=org.type,
+        stage=org.stage,
+        onboardingStep=org.onboarding_step
+    )
+
+# PATCH /auth/workspace
+@router.patch("/workspace", response_model=Workspace)
+async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
+    org = db.query(OrganizationModel).filter(OrganizationModel.id == member.org_id).first()
+    
+    if "name" in data: org.name = data["name"]
+    if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
+    if "industry" in data: org.industry = data["industry"]
+    if "type" in data: org.type = data["type"]
+    if "stage" in data: org.stage = data["stage"]
+    
+    db.commit()
+    return Workspace(
+        id=org.id,
+        name=org.name,
+        onboardingStep=org.onboarding_step,
+        industry=org.industry,
+        type=org.type,
+        stage=org.stage
+    )
+
+# GET /auth/myrole
+@router.get("/myrole", response_model=MyRole)
+async def get_my_role(email: str, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
+    
+    return MyRole(
+        title=member.role or "Founder",
+        responsibility=member.responsibility or "",
+        authority=json.loads(member.authority),
+        commitment=member.hours_per_week,
+        startDate=member.start_date or "",
+        plannedChange=member.planned_change,
+        salary=member.salary,
+        bonus=member.bonus,
+        equity=member.equity,
+        vesting=member.vesting,
+        expectations=json.loads(member.expectations),
+        lastUpdated=member.last_updated or "",
+        status=member.status
+    )
+
+# PATCH /auth/myrole
+@router.patch("/myrole", response_model=MyRole)
+async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
+    
+    if "title" in data: member.role = data["title"]
+    if "responsibility" in data: member.responsibility = data["responsibility"]
+    if "authority" in data: member.authority = json.dumps(data["authority"])
+    if "commitment" in data: member.hours_per_week = data["commitment"]
+    if "startDate" in data: member.start_date = data["startDate"]
+    if "plannedChange" in data: member.planned_change = data["plannedChange"]
+    if "salary" in data: member.salary = data["salary"]
+    if "bonus" in data: member.bonus = data["bonus"]
+    if "equity" in data: member.equity = data["equity"]
+    if "vesting" in data: member.vesting = data["vesting"]
+    if "expectations" in data: member.expectations = json.dumps(data["expectations"])
+    if "status" in data: member.status = data["status"]
+    
+    member.last_updated = time.strftime("%Y-%m-%d")
+    db.commit()
+    
+    return MyRole(
+        title=member.role,
+        responsibility=member.responsibility,
+        authority=json.loads(member.authority),
+        commitment=member.hours_per_week,
+        startDate=member.start_date,
+        plannedChange=member.planned_change,
+        salary=member.salary,
+        bonus=member.bonus,
+        equity=member.equity,
+        vesting=member.vesting,
+        expectations=json.loads(member.expectations),
+        lastUpdated=member.last_updated,
+        status=member.status
+    )
+
+# PATCH /auth/user
+@router.patch("/user", response_model=User)
+async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if "fullName" in data: user.full_name = data["fullName"]
+    if "avatarUrl" in data: user.avatar_url = data["avatarUrl"]
+    
+    db.commit()
+    db.refresh(user)
+    
+    return User(
+        id=user.id,
+        fullName=user.full_name,
+        email=user.email,
+        avatarUrl=user.avatar_url,
+        role="Founder"
     )
 
 # POST /auth/google
 @router.post("/google", response_model=User)
-async def google_signup(db: Session = Depends(get_db)):
-    # Mock Google Auth - default to Indra for demo
-    email = "indra094@gmail.com"
+async def google_signup(email: str, db: Session = Depends(get_db)):
+    # Enforce database check - no hardcoded fallbacks
     user = db.query(UserModel).filter(UserModel.email == email).first()
     
     if not user:
-        # Fallback if seed failed for some reason, but should exist
-        timestamp = int(time.time())
-        user = UserModel(
-            id=f"u_g_{timestamp}",
-            full_name="Indra Demo",
-            email=email,
-            avatar_url="https://images.unsplash.com/photo-1519345182560-3f2917c472ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80"
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Google Account ({email}) not found in database. Please register first or use a seeded demo account."
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
         
     return User(
         id=user.id,

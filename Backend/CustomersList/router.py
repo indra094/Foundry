@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Customer as CustomerModel
+from models import Customer as CustomerModel, Organization, OrgMember, User
 import time
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
@@ -28,8 +28,11 @@ class CustomerCreate(BaseModel):
 
 # GET /customers/
 @router.get("/", response_model=List[Customer])
-async def get_customers(db: Session = Depends(get_db)):
-    return db.query(CustomerModel).all()
+async def get_customers(email: str, db: Session = Depends(get_db)):
+    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return db.query(CustomerModel).filter(CustomerModel.org_id == org.id).all()
 
 # GET /customers/{id}
 @router.get("/{id}", response_model=Customer)
@@ -41,10 +44,15 @@ async def get_customer(id: str, db: Session = Depends(get_db)):
 
 # POST /customers/
 @router.post("/", response_model=Customer)
-async def add_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
+async def add_customer(email: str, customer: CustomerCreate, db: Session = Depends(get_db)):
+    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+        
     new_id = f"cust_{int(time.time())}"
     db_customer = CustomerModel(
         id=new_id,
+        org_id=org.id,
         company=customer.company,
         role=customer.role,
         status=customer.status,

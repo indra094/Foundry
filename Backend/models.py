@@ -1,7 +1,6 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text
 from database import Base
-
-from sqlalchemy import ForeignKey, DateTime
+from sqlalchemy import ForeignKey
 import datetime
 
 class User(Base):
@@ -11,7 +10,6 @@ class User(Base):
     full_name = Column(String)
     email = Column(String, unique=True, index=True)
     avatar_url = Column(String, nullable=True)
-    # Removing 'role' from User as it's now organization-specific in OrgMember
 
 class Organization(Base):
     __tablename__ = "organizations"
@@ -19,6 +17,16 @@ class Organization(Base):
     id = Column(String, primary_key=True, index=True)
     name = Column(String)
     slug = Column(String, unique=True, index=True)
+    onboarding_step = Column(Integer, default=1)
+    stage = Column(String, default="Onboarding")
+    industry = Column(String, nullable=True)
+    type = Column(String, nullable=True)
+    
+    # Financial/Intelligence Metrics
+    risk_level = Column(String, default="Low")
+    burn_rate = Column(Float, default=0.0)
+    runway = Column(String, default="Unknown")
+    
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class OrgMember(Base):
@@ -29,15 +37,25 @@ class OrgMember(Base):
     org_id = Column(String, ForeignKey("organizations.id"))
     
     member_type = Column(String, default="Founder") # 'Founder' or 'Executive'
-    role = Column(String) # e.g. CEO, CTO
+    role = Column(String) # Title e.g. CEO, CTO
     
-    # Equity/Compensation fields
+    # MyRole detailed fields
+    responsibility = Column(String, nullable=True)
+    authority = Column(Text, default="[]") # JSON string of authority tags
     hours_per_week = Column(Integer, default=40)
+    start_date = Column(String, nullable=True)
+    planned_change = Column(String, default="none")
+    salary = Column(Float, default=0.0)
+    bonus = Column(String, default="None")
     equity = Column(Float, default=0.0)
+    vesting = Column(String, default="4 yrs, 1 yr cliff")
+    expectations = Column(Text, default="[]") # JSON string of accountability items
+    last_updated = Column(String, nullable=True)
+    status = Column(String, default="Active")
+    
     cash_contribution = Column(Float, default=0.0)
     risk_tolerance = Column(String, default="Medium")
     vesting_cliff = Column(Integer, default=4)
-    status = Column(String, default="Active")
 
 class Investor(Base):
     __tablename__ = "investors"
@@ -70,3 +88,35 @@ class Employee(Base):
     type = Column(String) # Human, AI
     role = Column(String)
     status = Column(String)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(String, ForeignKey("organizations.id"))
+    title = Column(String)
+    type = Column(String) # Warning, Info, Success
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class AIHistory(Base):
+    __tablename__ = "ai_history"
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(String, ForeignKey("employees.id"))
+    activity = Column(String)
+    timestamp = Column(String)
+
+class ReadinessGate(Base):
+    __tablename__ = "readiness_gates"
+    id = Column(Integer, primary_key=True, index=True)
+    gate_id = Column(String) # e.g. "incorporation", "funding"
+    org_id = Column(String, ForeignKey("organizations.id"))
+    score = Column(Integer)
+    issues = Column(Text) # JSON string of strings
+
+class Connection(Base):
+    __tablename__ = "connections"
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(String, ForeignKey("organizations.id"))
+    name = Column(String)
+    role = Column(String)
+    company = Column(String)
+    relevance = Column(String)

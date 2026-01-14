@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Investor as InvestorModel
+from models import Investor as InvestorModel, Organization, OrgMember, User
 import time
 
 router = APIRouter(prefix="/investors", tags=["Investors"])
@@ -28,8 +28,11 @@ class InvestorCreate(BaseModel):
 
 # GET /investors/
 @router.get("/", response_model=List[Investor])
-async def get_investors(db: Session = Depends(get_db)):
-    return db.query(InvestorModel).all()
+async def get_investors(email: str, db: Session = Depends(get_db)):
+    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    return db.query(InvestorModel).filter(InvestorModel.org_id == org.id).all()
 
 # GET /investors/{id}
 @router.get("/{id}", response_model=Investor)
@@ -41,10 +44,15 @@ async def get_investor(id: str, db: Session = Depends(get_db)):
 
 # POST /investors/
 @router.post("/", response_model=Investor)
-async def add_investor(investor: InvestorCreate, db: Session = Depends(get_db)):
+async def add_investor(email: str, investor: InvestorCreate, db: Session = Depends(get_db)):
+    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+        
     new_id = f"inv_{int(time.time())}"
     db_investor = InvestorModel(
         id=new_id,
+        org_id=org.id,
         name=investor.name,
         type=investor.type,
         stage=investor.stage,
