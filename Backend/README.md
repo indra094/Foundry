@@ -13,9 +13,9 @@
 
 2. **Create a virtual environment (optional but recommended):**
    ```powershell
-   & "C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe" -m venv venv
+   C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
 
-   .\venv\bin\Activate.ps1
+   .\venv\Scripts\Activate.ps1
    ```
 
 3. **Install dependencies:**
@@ -23,6 +23,13 @@
    pip install -r requirements.txt
    ```
 
+   cd c:\Users\Indrajeet\OneDrive\Documents\Foundry\Backend
+C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
+
+   .\venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   uvicorn main:app --reload
+   
 ## Running the Server
 
 Run the development server with hot-reload:
