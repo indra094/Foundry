@@ -1,0 +1,72 @@
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Customer as CustomerModel
+import time
+
+router = APIRouter(prefix="/customers", tags=["Customers"])
+
+class Customer(BaseModel):
+    id: str
+    company: str
+    role: str
+    status: str
+    signal: int
+    notes: Optional[str] = ""
+
+    class Config:
+        from_attributes = True
+
+class CustomerCreate(BaseModel):
+    company: str
+    role: str
+    status: str
+    signal: int
+    notes: Optional[str] = ""
+
+# GET /customers/
+@router.get("/", response_model=List[Customer])
+async def get_customers(db: Session = Depends(get_db)):
+    return db.query(CustomerModel).all()
+
+# GET /customers/{id}
+@router.get("/{id}", response_model=Customer)
+async def get_customer(id: str, db: Session = Depends(get_db)):
+    customer = db.query(CustomerModel).filter(CustomerModel.id == id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+# POST /customers/
+@router.post("/", response_model=Customer)
+async def add_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
+    new_id = f"cust_{int(time.time())}"
+    db_customer = CustomerModel(
+        id=new_id,
+        company=customer.company,
+        role=customer.role,
+        status=customer.status,
+        signal=customer.signal,
+        notes=customer.notes
+    )
+    db.add(db_customer)
+    db.commit()
+    db.refresh(db_customer)
+    return db_customer
+
+# PUT /customers/{id}
+@router.put("/{id}", response_model=Customer)
+async def update_customer(id: str, updates: dict, db: Session = Depends(get_db)):
+    db_customer = db.query(CustomerModel).filter(CustomerModel.id == id).first()
+    if not db_customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    for key, value in updates.items():
+        if hasattr(db_customer, key):
+            setattr(db_customer, key, value)
+            
+    db.commit()
+    db.refresh(db_customer)
+    return db_customer

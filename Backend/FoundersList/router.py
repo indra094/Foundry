@@ -30,6 +30,7 @@ class FounderCreate(BaseModel):
     riskTolerance: str
     vestingCliff: int
 
+# GET /founders/
 @router.get("/", response_model=List[Founder])
 async def get_founders(db: Session = Depends(get_db)):
     founders = db.query(FounderModel).filter(FounderModel.member_type == "Founder").all()
@@ -49,6 +50,7 @@ async def get_founders(db: Session = Depends(get_db)):
         ) for f in founders
     ]
 
+# GET /founders/{founder_id}
 @router.get("/{founder_id}", response_model=Founder)
 async def get_founder(founder_id: str, db: Session = Depends(get_db)):
     f = db.query(FounderModel).filter(FounderModel.id == founder_id, FounderModel.member_type == "Founder").first()
@@ -66,6 +68,7 @@ async def get_founder(founder_id: str, db: Session = Depends(get_db)):
         status=f.status
     )
 
+# POST /founders/
 @router.post("/", response_model=Founder)
 async def add_founder(founder: FounderCreate, db: Session = Depends(get_db)):
     new_id = f"f_{int(time.time())}"
@@ -96,6 +99,7 @@ async def add_founder(founder: FounderCreate, db: Session = Depends(get_db)):
         status=new_founder.status
     )
 
+# PUT /founders/{founder_id}
 @router.put("/{founder_id}", response_model=Founder)
 async def update_founder(founder_id: str, updates: dict, db: Session = Depends(get_db)):
     f = db.query(FounderModel).filter(FounderModel.id == founder_id, FounderModel.member_type == "Founder").first()

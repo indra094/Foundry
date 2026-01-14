@@ -24,6 +24,7 @@ class SignupRequest(BaseModel):
     fullName: str
     email: str
 
+# POST /auth/login
 @router.post("/login", response_model=User)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == request.email).first()
@@ -37,10 +38,10 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         id=user.id,
         fullName=user.full_name,
         email=user.email,
-        role=user.role,
         avatarUrl=user.avatar_url
     )
 
+# POST /auth/signup
 @router.post("/signup", response_model=User)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     timestamp = time.time()
@@ -89,6 +90,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         avatarUrl=new_user.avatar_url
     )
 
+# POST /auth/google
 @router.post("/google", response_model=User)
 async def google_signup(db: Session = Depends(get_db)):
     # Mock Google Auth - check if mock email exists
@@ -130,6 +132,5 @@ async def google_signup(db: Session = Depends(get_db)):
         id=user.id,
         fullName=user.full_name,
         email=user.email,
-        role=user.role,
         avatarUrl=user.avatar_url
     )
