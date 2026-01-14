@@ -29,7 +29,7 @@ C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv ve
    .\venv\Scripts\Activate.ps1
    pip install -r requirements.txt
    uvicorn main:app --reload
-   
+
 ## Running the Server
 
 Run the development server with hot-reload:
@@ -41,3 +41,11 @@ uvicorn main:app --reload
 Once running, open your browser to:
 - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+To read tables
+# Navigate to backend if not already there
+cd Backend
+# List all tables in the database
+sqlite3 foundry.db ".tables"
+
+sqlite3 foundry.db "SELECT * FROM users;"
