@@ -133,6 +133,29 @@ async def get_workspace(email: str, db: Session = Depends(get_db)):
         onboardingStep=org.onboarding_step
     )
 
+# GET /auth/workspaces
+@router.get("/workspaces", response_model=List[Workspace])
+async def get_workspaces(email: str, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    memberships = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).all()
+    org_ids = [m.org_id for m in memberships]
+    
+    orgs = db.query(OrganizationModel).filter(OrganizationModel.id.in_(org_ids)).all()
+    
+    return [
+        Workspace(
+            id=org.id,
+            name=org.name,
+            industry=org.industry,
+            type=org.type,
+            stage=org.stage,
+            onboardingStep=org.onboarding_step
+        ) for org in orgs
+    ]
+
 # PATCH /auth/workspace
 @router.patch("/workspace", response_model=Workspace)
 async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)):
