@@ -46,6 +46,6 @@ To read tables
 # Navigate to backend if not already there
 cd Backend
 # List all tables in the database
-sqlite3 foundry.db ".tables"
+sqlite3 foundry_v2.db ".tables"
 
-sqlite3 foundry.db "SELECT * FROM users;"
+sqlite3 foundry_v2.db "SELECT * FROM users;"
