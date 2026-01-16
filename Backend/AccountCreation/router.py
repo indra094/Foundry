@@ -231,6 +231,21 @@ async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)
 # GET /auth/myrole
 @router.get("/auth/myrole", response_model=MyRole)
 async def get_my_role(email: str, db: Session = Depends(get_db)):
+    return MyRole(
+        title=member.role or "Founder",
+        responsibility=member.responsibility or "",
+        authority=json.loads(member.authority or "[]"),
+        commitment=member.hours_per_week,
+        startDate=member.start_date or "",
+        plannedChange=member.planned_change or "",
+        salary=member.salary or 0.0,
+        bonus=member.bonus or "",
+        equity=member.equity or 0.0,
+        vesting=member.vesting or "",
+        expectations=json.loads(member.expectations or "[]"),
+        lastUpdated=member.last_updated or "",
+        status=member.status
+    )
     user = db.query(UserModel).filter(UserModel.email == email).first()
     if not user or not user.current_org_id:
         raise HTTPException(status_code=404, detail="Active org not set")
