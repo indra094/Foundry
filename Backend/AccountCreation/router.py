@@ -65,45 +65,84 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 # POST /auth/signup
 @router.post("/signup", response_model=User)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    timestamp = time.time()
-    existing = db.query(UserModel).filter(UserModel.email == request.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-        
-    new_user = UserModel(
-        id=f"u_{int(timestamp)}",
-        full_name=request.fullName,
-        email=request.email,
-        avatar_url=None
-    )
-    db.add(new_user)
-    
-    # Create Default Organization
-    org_id = f"org_{int(timestamp)}"
+    timestamp = int(time.time())
+
+    # 1. Check if user already exists
+    existing_user = db.query(UserModel).filter(
+        UserModel.email == request.email
+    ).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered"
+        )
+
+    # 2. Create Organization
+    org_id = f"org_{timestamp}"
     new_org = OrganizationModel(
         id=org_id,
-        name=f"Foundry",
-        slug=f"org-{int(timestamp)}",
-        onboarding_step=6 # Default to completed for demo feel as per request
+        name="Foundry",
+        slug=f"foundry-{timestamp}",
+        onboarding_step=1,   # onboarding starts, NOT completed
+        industry=None,
+        type=None,
+        stage=None
     )
     db.add(new_org)
-    
-    # Create Org Member (Founder)
+
+    # 3. Create User
+    user_id = f"u_{timestamp}"
+    new_user = UserModel(
+        id=user_id,
+        full_name=request.fullName,
+        email=request.email,
+        avatar_url=None,
+        current_org_id=org_id   # 🔑 CRITICAL
+    )
+    db.add(new_user)
+
+    # 4. Create Org Membership (Founder)
+    member_id = f"mem_{timestamp}"
     new_member = OrgMemberModel(
-        id=f"mem_{int(timestamp)}",
-        user_id=new_user.id,
-        org_id=new_org.id,
+        id=member_id,
+        user_id=user_id,
+        org_id=org_id,
         member_type="Founder",
         role="CEO",
         hours_per_week=40,
-        equity=50.0,
-        status="Active"
+        equity=100.0,
+        salary=0.0,
+        bonus="",
+        vesting="4y, 1y cliff",
+        responsibility="Overall company leadership",
+        authority=json.dumps([
+            "company_direction",
+            "hiring",
+            "fundraising",
+            "equity_decisions"
+        ]),
+        expectations=json.dumps([
+            "full_time_commitment",
+            "long_term_involvement"
+        ]),
+        status="Active",
+        start_date=time.strftime("%Y-%m-%d"),
+        planned_change="",
+        last_updated=time.strftime("%Y-%m-%d")
     )
     db.add(new_member)
-    
-    db.commit()
-    db.refresh(new_user)
-    
+
+    # 5. Commit everything atomically
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create account"
+        )
+
+    # 6. Return user
     return User(
         id=new_user.id,
         fullName=new_user.full_name,
@@ -116,14 +155,16 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
 @router.get("/workspace", response_model=Workspace)
 async def get_workspace(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
-    if not member:
-        raise HTTPException(status_code=404, detail="Membership not found")
-    
-    org = db.query(OrganizationModel).filter(OrganizationModel.id == member.org_id).first()
+    if not user or not user.current_org_id:
+        raise HTTPException(status_code=404, detail="Active workspace not found")
+
+    org = db.query(OrganizationModel).filter(
+        OrganizationModel.id == user.current_org_id
+    ).first()
+
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
     return Workspace(
         id=org.id,
         name=org.name,
@@ -160,16 +201,24 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
 @router.patch("/workspace", response_model=Workspace)
 async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
-    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
-    org = db.query(OrganizationModel).filter(OrganizationModel.id == member.org_id).first()
-    
+    if not user or not user.current_org_id:
+        raise HTTPException(status_code=404, detail="Active workspace not found")
+
+    org = db.query(OrganizationModel).filter(
+        OrganizationModel.id == user.current_org_id
+    ).first()
+
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
     if "name" in data: org.name = data["name"]
     if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
     if "industry" in data: org.industry = data["industry"]
     if "type" in data: org.type = data["type"]
     if "stage" in data: org.stage = data["stage"]
-    
+
     db.commit()
+
     return Workspace(
         id=org.id,
         name=org.name,
@@ -180,33 +229,51 @@ async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)
     )
 
 # GET /auth/myrole
-@router.get("/myrole", response_model=MyRole)
+@router.get("/auth/myrole", response_model=MyRole)
 async def get_my_role(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
-    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
-    
+    if not user or not user.current_org_id:
+        raise HTTPException(status_code=404, detail="Active org not set")
+
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == user.id,
+        OrgMemberModel.org_id == user.current_org_id
+    ).first()
+
+    if not member:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
     return MyRole(
         title=member.role or "Founder",
         responsibility=member.responsibility or "",
-        authority=json.loads(member.authority),
+        authority=json.loads(member.authority or "[]"),
         commitment=member.hours_per_week,
         startDate=member.start_date or "",
-        plannedChange=member.planned_change,
-        salary=member.salary,
-        bonus=member.bonus,
-        equity=member.equity,
-        vesting=member.vesting,
-        expectations=json.loads(member.expectations),
+        plannedChange=member.planned_change or "",
+        salary=member.salary or 0.0,
+        bonus=member.bonus or "",
+        equity=member.equity or 0.0,
+        vesting=member.vesting or "",
+        expectations=json.loads(member.expectations or "[]"),
         lastUpdated=member.last_updated or "",
         status=member.status
     )
 
 # PATCH /auth/myrole
-@router.patch("/myrole", response_model=MyRole)
+@router.patch("/auth/myrole", response_model=MyRole)
 async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
-    member = db.query(OrgMemberModel).filter(OrgMemberModel.user_id == user.id).first()
-    
+    if not user or not user.current_org_id:
+        raise HTTPException(status_code=404, detail="Active org not set")
+
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == user.id,
+        OrgMemberModel.org_id == user.current_org_id
+    ).first()
+
+    if not member:
+        raise HTTPException(status_code=404, detail="Membership not found")
+
     if "title" in data: member.role = data["title"]
     if "responsibility" in data: member.responsibility = data["responsibility"]
     if "authority" in data: member.authority = json.dumps(data["authority"])
@@ -219,10 +286,10 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     if "vesting" in data: member.vesting = data["vesting"]
     if "expectations" in data: member.expectations = json.dumps(data["expectations"])
     if "status" in data: member.status = data["status"]
-    
+
     member.last_updated = time.strftime("%Y-%m-%d")
     db.commit()
-    
+
     return MyRole(
         title=member.role,
         responsibility=member.responsibility,
