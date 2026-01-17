@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 import json
 from database import get_db
-from models import Organization, OrgMember, ReadinessGate, Notification, User
+from models import OrganizationModel, OrgMember, ReadinessGate, Notification, User
 
 router = APIRouter(prefix="/gates", tags=["Gates"])
 
 # GET /gates/incorporation
 @router.get("/incorporation")
 async def get_incorporation_readiness(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         
@@ -25,7 +25,7 @@ async def get_incorporation_readiness(email: str, db: Session = Depends(get_db))
 # GET /gates/notifications
 @router.get("/notifications")
 async def get_notifications(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         

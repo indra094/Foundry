@@ -42,7 +42,7 @@ def seed():
 
         # Create/Update Organization for this user
         org_slug = f"foundry-{user.id}"
-        org = db.query(models.Organization).filter(models.Organization.slug == org_slug).first()
+        org = db.query(models.OrganizationModel).filter(models.OrganizationModel.slug == org_slug).first()
         
         # User-specific org settings
         is_indra = user.email == "indra094@gmail.com"
@@ -51,7 +51,7 @@ def seed():
         org_type = "B2B SaaS" if is_indra else "Consumer Finance"
 
         if not org:
-            org = models.Organization(
+            org = models.OrganizationModel(
                 id=f"org_{user.id}",
                 name=org_name,
                 slug=org_slug,

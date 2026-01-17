@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Employee as EmployeeModel, AIHistory as AIHistoryModel, Organization, OrgMember, User
+from models import Employee as EmployeeModel, AIHistory as AIHistoryModel, OrganizationModel, OrgMember, User
 import time
 
 router = APIRouter(prefix="/team", tags=["Team"])
@@ -27,7 +27,7 @@ class EmployeeCreate(BaseModel):
 # GET /team/employees
 @router.get("/employees", response_model=List[Employee])
 async def get_employees(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     return db.query(EmployeeModel).filter(EmployeeModel.org_id == org.id).all()
@@ -35,7 +35,7 @@ async def get_employees(email: str, db: Session = Depends(get_db)):
 # POST /team/employees
 @router.post("/employees", response_model=Employee)
 async def add_employee(email: str, employee: EmployeeCreate, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         

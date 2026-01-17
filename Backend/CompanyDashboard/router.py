@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import OrgMember, Organization, Connection, User  # <-- import User
+from models import OrgMember, OrganizationModel, Connection, User  # <-- import User
 
 router = APIRouter(prefix="/intelligence", tags=["Intelligence"])
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/intelligence", tags=["Intelligence"])
 async def get_dashboard_stats(email: str, db: Session = Depends(get_db)):
     # Find organization for this user
     org = (
-        db.query(Organization)
+        db.query(OrganizationModel)
         .join(OrgMember)
         .join(User)  # <-- use User directly
         .filter(User.email == email)
@@ -50,7 +50,7 @@ async def get_dashboard_stats(email: str, db: Session = Depends(get_db)):
 @router.get("/connections")
 async def get_relevant_connections(email: str, db: Session = Depends(get_db)):
     org = (
-        db.query(Organization)
+        db.query(OrganizationModel)
         .join(OrgMember)
         .join(User)
         .filter(User.email == email)

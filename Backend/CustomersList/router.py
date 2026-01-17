@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Customer as CustomerModel, Organization, OrgMember, User
+from models import Customer as CustomerModel, OrganizationModel, OrgMember, User
 import time
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
@@ -29,7 +29,7 @@ class CustomerCreate(BaseModel):
 # GET /customers/
 @router.get("/", response_model=List[Customer])
 async def get_customers(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     return db.query(CustomerModel).filter(CustomerModel.org_id == org.id).all()
@@ -45,7 +45,7 @@ async def get_customer(id: str, db: Session = Depends(get_db)):
 # POST /customers/
 @router.post("/", response_model=Customer)
 async def add_customer(email: str, customer: CustomerCreate, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         

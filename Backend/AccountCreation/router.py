@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User as UserModel, Organization as OrganizationModel, OrgMember as OrgMemberModel
+from models import User as UserModel, OrganizationModel, OrgMember as OrgMemberModel
 import time
 import json
 
@@ -25,7 +25,14 @@ class Workspace(BaseModel):
     geography: Optional[str] = None
     type: Optional[str] = None
     stage: Optional[str] = None
+
+    # 🔥 ADD
+    problem: Optional[str] = None
+    solution: Optional[str] = None
+    customer: Optional[str] = None
+
     onboardingStep: Optional[int] = None
+
 
 class MyRole(BaseModel):
     title: str
@@ -174,8 +181,12 @@ async def get_workspace(email: str, db: Session = Depends(get_db)):
         id=org.id,
         name=org.name,
         industry=org.industry,
+        geography=org.geography,
         type=org.type,
         stage=org.stage,
+        problem=org.problem,
+        solution=org.solution,
+        customer=org.customer,
         onboardingStep=org.onboarding_step
     )
 
@@ -216,22 +227,33 @@ async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
+    # ✅ Existing
     if "name" in data: org.name = data["name"]
-    if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
     if "industry" in data: org.industry = data["industry"]
+    if "geography" in data: org.geography = data["geography"]
     if "type" in data: org.type = data["type"]
     if "stage" in data: org.stage = data["stage"]
+    if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
+
+    # 🔥 NEW
+    if "problem" in data: org.problem = data["problem"]
+    if "solution" in data: org.solution = data["solution"]
+    if "customer" in data: org.customer = data["customer"]
 
     db.commit()
+    db.refresh(org)
 
     return Workspace(
         id=org.id,
         name=org.name,
-        onboardingStep=org.onboarding_step,
         industry=org.industry,
         geography=org.geography,
         type=org.type,
         stage=org.stage,
+        problem=org.problem,
+        solution=org.solution,
+        customer=org.customer,
+        onboardingStep=org.onboarding_step
     )
 
 # GET /auth/myrole

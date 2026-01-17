@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Investor as InvestorModel, Organization, OrgMember, User
+from models import Investor as InvestorModel, OrganizationModel, OrgMember, User
 import time
 
 router = APIRouter(prefix="/investors", tags=["Investors"])
@@ -29,7 +29,7 @@ class InvestorCreate(BaseModel):
 # GET /investors/
 @router.get("/", response_model=List[Investor])
 async def get_investors(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     return db.query(InvestorModel).filter(InvestorModel.org_id == org.id).all()
@@ -45,7 +45,7 @@ async def get_investor(id: str, db: Session = Depends(get_db)):
 # POST /investors/
 @router.post("/", response_model=Investor)
 async def add_investor(email: str, investor: InvestorCreate, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(OrgMember).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(OrgMember).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         

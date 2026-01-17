@@ -12,25 +12,27 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
 
     current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
-class Organization(Base):
+class OrganizationModel(Base):
     __tablename__ = "organizations"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(String, primary_key=True)
     name = Column(String)
-    slug = Column(String, unique=True, index=True)
-    onboarding_step = Column(Integer, default=1)
-    stage = Column(String, default="Onboarding")
+    slug = Column(String)
+
     industry = Column(String, nullable=True)
+    geography = Column(String, nullable=True)
     type = Column(String, nullable=True)
-    
-    geography = Column(String, nullable=True)   # <-- NEW COLUMN
-    
-    # Financial/Intelligence Metrics
+    stage = Column(String, nullable=True)
+
+    # 🔥 ADD THESE
+    problem = Column(Text, nullable=True)
+    solution = Column(Text, nullable=True)
+    customer = Column(String, nullable=True)
+
+    onboarding_step = Column(Integer, default=0)
     risk_level = Column(String, default="Low")
-    burn_rate = Column(Float, default=0.0)
-    runway = Column(String, default="Unknown")
-    
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    burn_rate = Column(Integer, default=0)
+    runway = Column(String, nullable=True)
 
 
 class OrgMember(Base):

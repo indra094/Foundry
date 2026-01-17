@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from database import get_db
-from models import OrgMember as FounderModel, Organization, User
+from models import OrgMember as FounderModel, OrganizationModel, User
 import time
 
 router = APIRouter(prefix="/founders", tags=["Founders"])
@@ -33,7 +33,7 @@ class FounderCreate(BaseModel):
 # GET /founders/
 @router.get("/", response_model=List[Founder])
 async def get_founders(email: str, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(FounderModel).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(FounderModel).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
         
@@ -80,7 +80,7 @@ async def get_founder(founder_id: str, db: Session = Depends(get_db)):
 # POST /founders/
 @router.post("/", response_model=Founder)
 async def add_founder(email: str, founder: FounderCreate, db: Session = Depends(get_db)):
-    org = db.query(Organization).join(FounderModel).join(User).filter(User.email == email).first()
+    org = db.query(OrganizationModel).join(FounderModel).join(User).filter(User.email == email).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
