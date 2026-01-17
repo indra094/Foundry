@@ -11,6 +11,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     avatar_url = Column(String, nullable=True)
 
+    current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -22,12 +23,15 @@ class Organization(Base):
     industry = Column(String, nullable=True)
     type = Column(String, nullable=True)
     
+    geography = Column(String, nullable=True)   # <-- NEW COLUMN
+    
     # Financial/Intelligence Metrics
     risk_level = Column(String, default="Low")
     burn_rate = Column(Float, default=0.0)
     runway = Column(String, default="Unknown")
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 
 class OrgMember(Base):
     __tablename__ = "org_members"

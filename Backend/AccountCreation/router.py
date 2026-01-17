@@ -9,7 +9,7 @@ import json
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-class User(BaseModel):
+class UserSchema(BaseModel):
     id: str
     fullName: str
     email: str
@@ -22,9 +22,10 @@ class Workspace(BaseModel):
     id: str
     name: str
     industry: Optional[str] = None
+    geography: Optional[str] = None
     type: Optional[str] = None
     stage: Optional[str] = None
-    onboardingStep: int
+    onboardingStep: Optional[int] = None
 
 class MyRole(BaseModel):
     title: str
@@ -47,15 +48,17 @@ class LoginRequest(BaseModel):
 class SignupRequest(BaseModel):
     fullName: str
     email: str
+    name: str
+    geography: Optional[str] = None
 
 # POST /auth/login
-@router.post("/login", response_model=User)
+@router.post("/login", response_model=UserSchema)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return User(
+    return UserSchema(
         id=user.id,
         fullName=user.full_name,
         email=user.email,
@@ -63,9 +66,10 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 # POST /auth/signup
-@router.post("/signup", response_model=User)
+@router.post("/signup", response_model=UserSchema)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     timestamp = int(time.time())
+    print(f"Signup request received for email: {request.email}")
 
     # 1. Check if user already exists
     existing_user = db.query(UserModel).filter(
@@ -81,12 +85,13 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     org_id = f"org_{timestamp}"
     new_org = OrganizationModel(
         id=org_id,
-        name="Foundry",
+        name=request.name,
         slug=f"foundry-{timestamp}",
-        onboarding_step=1,   # onboarding starts, NOT completed
+        onboarding_step=1,
         industry=None,
         type=None,
-        stage=None
+        stage=None,
+        geography=request.geography
     )
     db.add(new_org)
 
@@ -143,7 +148,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         )
 
     # 6. Return user
-    return User(
+    return UserSchema(
         id=new_user.id,
         fullName=new_user.full_name,
         email=new_user.email,
@@ -224,8 +229,9 @@ async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)
         name=org.name,
         onboardingStep=org.onboarding_step,
         industry=org.industry,
+        geography=org.geography,
         type=org.type,
-        stage=org.stage
+        stage=org.stage,
     )
 
 # GET /auth/myrole
@@ -322,7 +328,7 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     )
 
 # PATCH /auth/user
-@router.patch("/user", response_model=User)
+@router.patch("/user", response_model=UserSchema)
 async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
     if not user:
@@ -334,7 +340,7 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     
-    return User(
+    return UserSchema(
         id=user.id,
         fullName=user.full_name,
         email=user.email,
@@ -343,7 +349,7 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     )
 
 # POST /auth/google
-@router.post("/google", response_model=User)
+@router.post("/google", response_model=UserSchema)
 async def google_signup(email: str, db: Session = Depends(get_db)):
     # Enforce database check - no hardcoded fallbacks
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -354,7 +360,7 @@ async def google_signup(email: str, db: Session = Depends(get_db)):
             detail=f"Google Account ({email}) not found in database. Please register first or use a seeded demo account."
         )
         
-    return User(
+    return UserSchema(
         id=user.id,
         fullName=user.full_name,
         email=user.email,
