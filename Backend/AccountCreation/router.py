@@ -179,6 +179,30 @@ def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends
     db.refresh(org)
     return org
 
+# GET /auth/workspace/{org_id}
+@router.get("/workspace/{org_id}", response_model=Workspace)
+async def get_workspace_by_id(email: str, db: Session = Depends(get_db)):
+    org = db.query(OrganizationModel).filter(
+        OrganizationModel.id == org_id
+    ).first()
+
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    return Workspace(
+        id=org.id,
+        name=org.name,
+        industry=org.industry,
+        geography=org.geography,
+        type=org.type,
+        stage=org.stage,
+        problem=org.problem,
+        solution=org.solution,
+        customer=org.customer,
+        onboardingStep=org.onboarding_step
+    )
+
+
 # GET /auth/workspace
 @router.get("/workspace", response_model=Workspace)
 async def get_workspace(email: str, db: Session = Depends(get_db)):
