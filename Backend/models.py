@@ -1,7 +1,12 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, JSON
 from database import Base
 from sqlalchemy import ForeignKey
 import datetime
+from sqlalchemy.orm import relationship
+import uuid
+
+def gen_id():
+    return str(uuid.uuid4())
 
 class User(Base):
     __tablename__ = "users"
@@ -12,6 +17,7 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
 
     current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
+
 class OrganizationModel(Base):
     __tablename__ = "organizations"
 
@@ -126,3 +132,18 @@ class Connection(Base):
     role = Column(String)
     company = Column(String)
     relevance = Column(String)
+
+class AIIdeaAnalysis(Base):
+    __tablename__ = "ai_idea_analysis"
+
+    workspace_id = Column(String, primary_key=True, index=True)
+    version = Column(Integer, default=1)
+    seed_funding_probability = Column(Integer, nullable=True)
+
+    # store everything in JSON
+    market = Column(JSON, nullable=True)
+    investor = Column(JSON, nullable=True)
+    strengths = Column(JSON, nullable=True)
+    weaknesses = Column(JSON, nullable=True)
+    personas = Column(JSON, nullable=True)
+    roadmap = Column(JSON, nullable=True)

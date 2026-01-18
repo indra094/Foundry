@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User as UserModel, OrganizationModel, OrgMember as OrgMemberModel
+from models import User as UserModel, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel
 import time
 import json
 
@@ -61,6 +61,38 @@ class SignupRequest(BaseModel):
 class SetOnboardingRequest(BaseModel):
     step: int
 
+class MarketSchema(BaseModel):
+    tam_value: int
+    growth_rate_percent: int
+    growth_index: int
+    insight: str
+
+class PersonaSchema(BaseModel):
+    name: str
+    pain: str
+    solution: str
+
+class MilestoneSchema(BaseModel):
+    label: str
+    duration_days: int
+    is_active: bool
+
+class RoadmapSchema(BaseModel):
+    recommended_stage: str
+    min_capital: int
+    max_capital: int
+    milestones: List[MilestoneSchema]
+
+class AnalysisPayload(BaseModel):
+    seed_funding_probability: int
+    market: MarketSchema
+    strengths: List[str]
+    weaknesses: List[str]
+    investor_verdict: str
+    personas: List[PersonaSchema]
+    roadmap: RoadmapSchema
+
+
 # POST /auth/login
 @router.post("/login", response_model=UserSchema)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
@@ -72,7 +104,8 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         id=user.id,
         fullName=user.full_name,
         email=user.email,
-        avatarUrl=user.avatar_url
+        avatarUrl=user.avatar_url,
+        current_org_id=user.current_org_id
     )
 
 # POST /auth/signup
@@ -163,7 +196,8 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         fullName=new_user.full_name,
         email=new_user.email,
         role="Founder",
-        avatarUrl=new_user.avatar_url
+        avatarUrl=new_user.avatar_url,
+        current_org_id=new_org.id
     )
     
 
@@ -253,15 +287,19 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
         ) for org in orgs
     ]
 
+# PATCH /auth/{org_id}/workspace-and-insights
+@router.patch("/{org_id}/workspace-and-insights", response_model=Workspace)
+async def update_workspace_and_insights(org_id: str, data: dict, db: Session = Depends(get_db)):
+    update_workspace(org_id, data, db)
+    upsert_analysis(org_id, data, db)
+    return get_workspace(org_id, db)
+
+
 # PATCH /auth/workspace
 @router.patch("/workspace", response_model=Workspace)
-async def update_workspace(email: str, data: dict, db: Session = Depends(get_db)):
-    user = db.query(UserModel).filter(UserModel.email == email).first()
-    if not user or not user.current_org_id:
-        raise HTTPException(status_code=404, detail="Active workspace not found")
-
+async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(
-        OrganizationModel.id == user.current_org_id
+        OrganizationModel.id == org_id
     ).first()
 
     if not org:
@@ -407,7 +445,8 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
         fullName=user.full_name,
         email=user.email,
         avatarUrl=user.avatar_url,
-        role="Founder"
+        role="Founder",
+        current_org_id=user.current_org_id
     )
 
 # POST /auth/google
@@ -427,5 +466,113 @@ async def google_signup(email: str, db: Session = Depends(get_db)):
         fullName=user.full_name,
         email=user.email,
         avatarUrl=user.avatar_url,
-        role="Founder"
+        role="Founder",
+        current_org_id=user.current_org_id
     )
+
+# PATCH /auth/{org_id}/idea-analysis
+@router.patch("/{org_id}/idea-analysis")
+async def upsert_analysis(
+    org_id: str,
+    payload: AnalysisPayload | None,
+    db: Session = Depends(get_db)
+):
+    if payload is None:
+        return {"status": "ok", "org_id": org_id, "message": "No payload provided. No changes made."}
+
+    try:
+        analysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).first()
+
+        if not analysis:
+            analysis = AIIdeaAnalysis(workspace_id=org_id)
+            db.add(analysis)
+
+        # Only update fields that are provided in the payload
+        if payload.seed_funding_probability is not None:
+            analysis.seed_funding_probability = payload.seed_funding_probability
+
+        if payload.market is not None:
+            analysis.market = payload.market.dict()
+
+        if payload.investor_verdict is not None:
+            analysis.investor = {"verdict_text": payload.investor_verdict}
+
+        if payload.strengths is not None:
+            analysis.strengths = payload.strengths
+
+        if payload.weaknesses is not None:
+            analysis.weaknesses = payload.weaknesses
+
+        if payload.personas is not None:
+            analysis.personas = [p.dict() for p in payload.personas]
+
+        if payload.roadmap is not None:
+            analysis.roadmap = payload.roadmap.dict()
+
+        db.commit()
+        return {"status": "ok", "org_id": org_id}
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error while saving analysis."
+        )
+
+# GET /auth/{org_id}/idea-analysis
+@router.get("/{org_id}/idea-analysis")
+def get_analysis(
+    org_id: str,
+    db: Session = Depends(get_db)
+):
+    analysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).first()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    market = analysis.market or None
+    investor = analysis.investor or None
+    strengths = analysis.strengths or []
+    weaknesses = analysis.weaknesses or []
+    personas = analysis.personas or []
+    roadmap = analysis.roadmap or None
+
+    return {
+        "org_id": org_id,
+        "seed_funding_probability": analysis.seed_funding_probability,
+
+        "market": market and {
+            "tam_value": market.get("tam_value"),
+            "growth_rate_percent": market.get("growth_rate_percent"),
+            "growth_index": market.get("growth_index"),
+            "insight": market.get("insight"),
+        },
+
+        "investor_verdict": investor.get("verdict_text") if investor else None,
+
+        "strengths": [s for s in strengths],
+        "weaknesses": [w for w in weaknesses],
+
+        "personas": [
+            {
+                "name": p.get("name"),
+                "pain": p.get("pain"),
+                "solution": p.get("solution")
+            }
+            for p in personas
+        ],
+
+        "roadmap": roadmap and {
+            "recommended_stage": roadmap.get("recommended_stage"),
+            "min_capital": roadmap.get("min_capital"),
+            "max_capital": roadmap.get("max_capital"),
+            "milestones": [
+                {
+                    "label": m.get("label"),
+                    "duration_days": m.get("duration_days"),
+                    "is_active": bool(m.get("is_active"))
+                }
+                for m in (roadmap.get("milestones") or [])
+            ]
+        }
+    }
