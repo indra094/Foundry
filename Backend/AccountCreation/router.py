@@ -58,6 +58,9 @@ class SignupRequest(BaseModel):
     name: str
     geography: Optional[str] = None
 
+class SetOnboardingRequest(BaseModel):
+    step: int
+
 # POST /auth/login
 @router.post("/login", response_model=UserSchema)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
@@ -162,6 +165,19 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         role="Founder",
         avatarUrl=new_user.avatar_url
     )
+    
+
+# GET /auth/{org_id}/set-onboarding
+@router.post("/{org_id}/set-onboarding")
+def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends(get_db)):
+    org = db.query(OrganizationModel).filter(OrganizationModel.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    org.onboarding_step = max(org.onboarding_step or 1, req.step)
+    db.commit()
+    db.refresh(org)
+    return org
 
 # GET /auth/workspace
 @router.get("/workspace", response_model=Workspace)
@@ -201,7 +217,7 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
     org_ids = [m.org_id for m in memberships]
     
     orgs = db.query(OrganizationModel).filter(OrganizationModel.id.in_(org_ids)).all()
-    
+
     return [
         Workspace(
             id=org.id,
