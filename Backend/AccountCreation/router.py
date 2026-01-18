@@ -181,7 +181,7 @@ def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends
 
 # GET /auth/workspace/{org_id}
 @router.get("/workspace/{org_id}", response_model=Workspace)
-async def get_workspace_by_id(email: str, db: Session = Depends(get_db)):
+async def get_workspace_by_id(org_id: str, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(
         OrganizationModel.id == org_id
     ).first()
