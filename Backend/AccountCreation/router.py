@@ -15,6 +15,7 @@ class UserSchema(BaseModel):
     email: str
     role: Optional[str] = "Founder"
     avatarUrl: Optional[str] = None
+    current_org_id: Optional[str] = None
     class Config:
         orm_mode = True
 
@@ -55,7 +56,6 @@ class LoginRequest(BaseModel):
 class SignupRequest(BaseModel):
     fullName: str
     email: str
-    name: str
     geography: Optional[str] = None
 
 class SetOnboardingRequest(BaseModel):
@@ -114,46 +114,64 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     timestamp = int(time.time())
     print(f"Signup request received for email: {request.email}")
 
-    # 1. Check if user already exists
-    existing_user = db.query(UserModel).filter(
-        UserModel.email == request.email
-    ).first()
+    existing_user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email already registered"
-        )
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    # 2. Create Organization
-    org_id = f"org_{timestamp}"
-    new_org = OrganizationModel(
-        id=org_id,
-        name=request.name,
-        slug=f"foundry-{timestamp}",
-        onboarding_step=1,
-        industry=None,
-        type=None,
-        stage=None,
-        geography=request.geography
-    )
-    db.add(new_org)
-
-    # 3. Create User
     user_id = f"u_{timestamp}"
     new_user = UserModel(
         id=user_id,
         full_name=request.fullName,
         email=request.email,
         avatar_url=None,
-        current_org_id=org_id   # 🔑 CRITICAL
+        current_org_id=None
     )
     db.add(new_user)
 
-    # 4. Create Org Membership (Founder)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create account")
+
+    return UserSchema(
+        id=new_user.id,
+        fullName=new_user.full_name,
+        email=new_user.email,
+        role="Founder",
+        avatarUrl=new_user.avatar_url,
+        current_org_id=new_user.current_org_id
+    )
+
+# POST /auth/workspace
+@router.post("/workspace", response_model=Workspace)
+async def create_org(data: dict, db: Session = Depends(get_db)):
+    # 1. Find user
+    user = db.query(UserModel).filter(UserModel.email == data.get("email")).first()
+    if not user:
+
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2. Create org
+    timestamp = int(time.time())
+    org_id = f"org_{user.id}_{timestamp}"
+
+    new_org = OrganizationModel(
+        id=org_id,
+        name=data.get("name", f"Workspace {timestamp}"),
+        slug=f"foundry-{timestamp}",
+        onboarding_step=1
+    )
+    db.add(new_org)
+
+    # 3. Set user's current org
+    user.current_org_id = org_id
+
+    # 4. Create founder membership
     member_id = f"mem_{timestamp}"
     new_member = OrgMemberModel(
         id=member_id,
-        user_id=user_id,
+        user_id=user.id,
         org_id=org_id,
         member_type="Founder",
         role="CEO",
@@ -180,26 +198,27 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     )
     db.add(new_member)
 
-    # 5. Commit everything atomically
+    # 5. Commit everything
     try:
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to create account"
-        )
+        raise HTTPException(status_code=500, detail="Failed to create org")
 
-    # 6. Return user
-    return UserSchema(
-        id=new_user.id,
-        fullName=new_user.full_name,
-        email=new_user.email,
-        role="Founder",
-        avatarUrl=new_user.avatar_url,
-        current_org_id=new_org.id
+    # 6. Return workspace
+    return Workspace(
+        id=new_org.id,
+        name=new_org.name,
+        industry=new_org.industry,
+        geography=new_org.geography,
+        type=new_org.type,
+        stage=new_org.stage,
+        problem=new_org.problem,
+        solution=new_org.solution,
+        customer=new_org.customer,
+        onboardingStep=new_org.onboarding_step
     )
-    
+
 
 # GET /auth/{org_id}/set-onboarding
 @router.post("/{org_id}/set-onboarding")
@@ -436,6 +455,7 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     
     if "fullName" in data: user.full_name = data["fullName"]
     if "avatarUrl" in data: user.avatar_url = data["avatarUrl"]
+    if "current_org_id" in data: user.current_org_id = data["current_org_id"]  # 🔥 Allow switching orgs
     
     db.commit()
     db.refresh(user)
