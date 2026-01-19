@@ -59,6 +59,12 @@ class SignupRequest(BaseModel):
     email: str
     geography: Optional[str] = None
 
+class SetUserOrgInfoRequest(BaseModel):
+    user_id: str
+    org_id: str
+    role: Optional[str] = None
+    equity: Optional[float] = None
+
 class SetOnboardingRequest(BaseModel):
     step: int
 
@@ -220,6 +226,70 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
         customer=new_org.customer,
         onboardingStep=new_org.onboarding_step
     )
+
+
+# POST /auth/set-user-org-info
+@router.post("/set-user-org-info")
+async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(get_db)):
+    # Find the membership
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == req.user_id,
+        OrgMemberModel.org_id == req.org_id
+    ).first()
+
+    if not member:
+        # If no membership exists, we might need to create one, or it's an error. 
+        # For now, let's assume membership is created during workspace creation/invite.
+        # But if this is the first time setting info, maybe we need to be deeper?
+        # Actually, workspace creation creates the "Founder" member. 
+        # If this is inviting a NEW user, we might need to handle creation.
+        # BUT, the request implies updating existing info.
+        raise HTTPException(status_code=404, detail="Organization membership not found")
+
+    if req.role is not None:
+        member.role = req.role
+        member.member_type = req.role # Update member_type too? Maybe keep simplified "Founder"/"Executive" logic separate? 
+        # sticking to role for now as requested.
+    
+    if req.equity is not None:
+        member.equity = req.equity
+
+    member.last_updated = time.strftime("%Y-%m-%d")
+    
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update org info")
+
+    return {"status": "success", "message": "User info updated"}
+
+
+@router.get("/user-org-info")
+async def get_user_org_info(
+    user_id: str,
+    org_id: str,
+    db: Session = Depends(get_db)
+):
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == user_id,
+        OrgMemberModel.org_id == org_id
+    ).first()
+
+    if not member:
+        raise HTTPException(
+            status_code=404,
+            detail="Organization membership not found"
+        )
+
+    return {
+        "user_id": member.user_id,
+        "org_id": member.org_id,
+        "role": member.role,
+        "equity": member.equity,
+        "member_type": member.member_type,
+        "last_updated": member.last_updated,
+    }
 
 
 # GET /auth/{org_id}/set-onboarding
