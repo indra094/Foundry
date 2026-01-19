@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel
+from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from database import get_db
@@ -96,6 +97,7 @@ class AnalysisPayload(BaseModel):
 # POST /auth/login
 @router.post("/login", response_model=UserSchema)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    print(f"Login request received for email: {request.email}")
     user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -221,7 +223,7 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
 
 
 # GET /auth/{org_id}/set-onboarding
-@router.post("/{org_id}/set-onboarding")
+@router.post("/{org_id}/set-onboarding", response_model=Workspace)
 def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(OrganizationModel.id == org_id).first()
     if not org:
@@ -309,14 +311,15 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
 # PATCH /auth/{org_id}/workspace-and-insights
 @router.patch("/{org_id}/workspace-and-insights", response_model=Workspace)
 async def update_workspace_and_insights(org_id: str, data: dict, db: Session = Depends(get_db)):
-    update_workspace(org_id, data, db)
-    upsert_analysis(org_id, data, db)
-    return get_workspace(org_id, db)
+    await update_workspace_service(org_id, data, db)
 
+    if "analysis" in data:
+        payload = AnalysisPayload(**data["analysis"])
+        await upsert_analysis(org_id, payload, db)
 
-# PATCH /auth/workspace
-@router.patch("/workspace", response_model=Workspace)
-async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
+    return await get_workspace_by_id(org_id, db)
+
+async def update_workspace_service(org_id: str, data: dict, db: Session):
     org = db.query(OrganizationModel).filter(
         OrganizationModel.id == org_id
     ).first()
@@ -324,22 +327,25 @@ async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
-    # ✅ Existing
     if "name" in data: org.name = data["name"]
     if "industry" in data: org.industry = data["industry"]
     if "geography" in data: org.geography = data["geography"]
     if "type" in data: org.type = data["type"]
     if "stage" in data: org.stage = data["stage"]
     if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
-
-    # 🔥 NEW
     if "problem" in data: org.problem = data["problem"]
     if "solution" in data: org.solution = data["solution"]
     if "customer" in data: org.customer = data["customer"]
 
     db.commit()
     db.refresh(org)
+    return org
 
+
+# PATCH /auth/{org_id}/workspace
+@router.patch("/{org_id}/workspace", response_model=Workspace)
+async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
+    org = await update_workspace_service(org_id, data, db)
     return Workspace(
         id=org.id,
         name=org.name,
@@ -490,8 +496,6 @@ async def google_signup(email: str, db: Session = Depends(get_db)):
         current_org_id=user.current_org_id
     )
 
-# PATCH /auth/{org_id}/idea-analysis
-@router.patch("/{org_id}/idea-analysis")
 async def upsert_analysis(
     org_id: str,
     payload: AnalysisPayload | None,
