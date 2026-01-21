@@ -17,6 +17,7 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
 
     current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
+    status = Column(String, default="Active")
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
@@ -50,8 +51,9 @@ class OrgMember(Base):
     
     member_type = Column(String, default="Founder") # 'Founder' or 'Executive'
     role = Column(String) # Title e.g. CEO, CTO
-    
-    # MyRole detailed fields
+    permission_level = Column(String, default="ADMIN") # 'Read', 'Write', 'Admin'
+
+    # UserOrgInfo detailed fields
     responsibility = Column(String, nullable=True)
     authority = Column(Text, default="[]") # JSON string of authority tags
     hours_per_week = Column(Integer, default=40)

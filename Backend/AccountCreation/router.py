@@ -36,7 +36,7 @@ class Workspace(BaseModel):
     onboardingStep: Optional[int] = None
 
 
-class MyRole(BaseModel):
+class UserOrgInfo(BaseModel):
     title: str
     responsibility: str
     authority: List[str]
@@ -59,6 +59,7 @@ class CreateUserRequest(BaseModel):
     email: str
     geography: Optional[str] = None
     org_id: Optional[str] = None
+    status: str
 
 class SetUserOrgInfoRequest(BaseModel):
     user_id: str
@@ -137,7 +138,8 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         full_name=request.fullName,
         email=request.email,
         avatar_url=None,
-        current_org_id=request.org_id
+        current_org_id=request.org_id,
+        status=request.status
     )
 
     db.add(new_user)
@@ -156,7 +158,8 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         email=new_user.email,
         role="Founder",
         avatarUrl=new_user.avatar_url,
-        current_org_id=new_user.current_org_id
+        current_org_id=new_user.current_org_id,
+        status=new_user.status
     )
 
 
@@ -178,7 +181,8 @@ async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
         full_name=request.fullName,
         email=request.email,
         avatar_url=None,
-        current_org_id=None
+        current_org_id=None,
+        status=request.status
     )
     db.add(new_user)
 
@@ -194,7 +198,8 @@ async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
         email=new_user.email,
         role="Founder",
         avatarUrl=new_user.avatar_url,
-        current_org_id=new_user.current_org_id
+        current_org_id=new_user.current_org_id,
+        status=new_user.status
     )
 
 # POST /auth/workspace
@@ -249,6 +254,7 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
         status="Active",
         start_date=time.strftime("%Y-%m-%d"),
         planned_change="",
+        permission_level="ADMIN",
         last_updated=time.strftime("%Y-%m-%d")
     )
     db.add(new_member)
@@ -303,7 +309,8 @@ async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(ge
             status="Invited",
             start_date=time.strftime("%Y-%m-%d"),
             planned_change="",
-            last_updated=time.strftime("%Y-%m-%d")
+            last_updated=time.strftime("%Y-%m-%d"),
+            permission_level="ADMIN" if req.role == "Founder" else "Read"
         )
         db.add(member)
 
@@ -350,6 +357,7 @@ async def get_user_org_info(
         "equity": member.equity,
         "member_type": member.member_type,
         "last_updated": member.last_updated,
+        "permission_level": member.permission_level
     }
 
 @router.get("/{org_id}/users", response_model=List[UserSchema])
@@ -514,10 +522,10 @@ async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db
         onboardingStep=org.onboarding_step
     )
 
-# GET /auth/myrole
-@router.get("/auth/myrole", response_model=MyRole)
+# GET /auth/UserOrgInfo
+@router.get("/auth/UserOrgInfo", response_model=UserOrgInfo)
 async def get_my_role(email: str, db: Session = Depends(get_db)):
-    return MyRole(
+    return UserOrgInfo(
         title=member.role or "Founder",
         responsibility=member.responsibility or "",
         authority=json.loads(member.authority or "[]"),
@@ -544,7 +552,7 @@ async def get_my_role(email: str, db: Session = Depends(get_db)):
     if not member:
         raise HTTPException(status_code=404, detail="Membership not found")
 
-    return MyRole(
+    return UserOrgInfo(
         title=member.role or "Founder",
         responsibility=member.responsibility or "",
         authority=json.loads(member.authority or "[]"),
@@ -560,8 +568,8 @@ async def get_my_role(email: str, db: Session = Depends(get_db)):
         status=member.status
     )
 
-# PATCH /auth/myrole
-@router.patch("/auth/myrole", response_model=MyRole)
+# PATCH /auth/UserOrgInfo
+@router.patch("/auth/UserOrgInfo", response_model=UserOrgInfo)
 async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
     if not user or not user.current_org_id:
@@ -591,7 +599,7 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     member.last_updated = time.strftime("%Y-%m-%d")
     db.commit()
 
-    return MyRole(
+    return UserOrgInfo(
         title=member.role,
         responsibility=member.responsibility,
         authority=json.loads(member.authority),
