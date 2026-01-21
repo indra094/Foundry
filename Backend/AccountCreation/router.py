@@ -54,10 +54,11 @@ class MyRole(BaseModel):
 class LoginRequest(BaseModel):
     email: str
 
-class SignupRequest(BaseModel):
+class CreateUserRequest(BaseModel):
     fullName: str
     email: str
     geography: Optional[str] = None
+    org_id: Optional[str] = None
 
 class SetUserOrgInfoRequest(BaseModel):
     user_id: str
@@ -116,15 +117,60 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         current_org_id=user.current_org_id
     )
 
+# POST /auth/user
+@router.post("/user", response_model=UserSchema)
+async def create_user(request: CreateUserRequest, db: Session = Depends(get_db)):
+    # 1. Validate duplicate email
+    existing_user = db.query(UserModel).filter(UserModel.email == request.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # 2. Create user id
+    timestamp = int(time.time())
+    user_id = f"u_{request.org_id}_{timestamp}"
+
+    print(f"[create_user] setting current_org_id = {request.org_id}")
+
+    # 3. Create new user
+    new_user = UserModel(
+        id=user_id,
+        full_name=request.fullName,
+        email=request.email,
+        avatar_url=None,
+        current_org_id=request.org_id
+    )
+
+    db.add(new_user)
+
+    try:
+        db.commit()
+        db.refresh(new_user)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+    # 4. Return response
+    return UserSchema(
+        id=new_user.id,
+        fullName=new_user.full_name,
+        email=new_user.email,
+        role="Founder",
+        avatarUrl=new_user.avatar_url,
+        current_org_id=new_user.current_org_id
+    )
+
+
 # POST /auth/signup
 @router.post("/signup", response_model=UserSchema)
-async def signup(request: SignupRequest, db: Session = Depends(get_db)):
+async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
     timestamp = int(time.time())
     print(f"Signup request received for email: {request.email}")
 
     existing_user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+
+    print("[signup] setting current_org_id = None")
 
     user_id = f"u_{timestamp}"
     new_user = UserModel(
@@ -171,12 +217,13 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
         onboarding_step=1
     )
     db.add(new_org)
+    print(f"[create_org] setting current_org_id = {org_id}")
 
     # 3. Set user's current org
     user.current_org_id = org_id
 
     # 4. Create founder membership
-    member_id = f"mem_{timestamp}"
+    member_id = f"mem_{org_id}_{user.id}"
     new_member = OrgMemberModel(
         id=member_id,
         user_id=user.id,
@@ -238,13 +285,27 @@ async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(ge
     ).first()
 
     if not member:
-        # If no membership exists, we might need to create one, or it's an error. 
-        # For now, let's assume membership is created during workspace creation/invite.
-        # But if this is the first time setting info, maybe we need to be deeper?
-        # Actually, workspace creation creates the "Founder" member. 
-        # If this is inviting a NEW user, we might need to handle creation.
-        # BUT, the request implies updating existing info.
-        raise HTTPException(status_code=404, detail="Organization membership not found")
+        member_id = f"mem_{req.org_id}_{req.user_id}"
+        member = OrgMemberModel(
+            id=member_id,
+            user_id=req.user_id,
+            org_id=req.org_id,
+            member_type=req.role or "Member",
+            role=req.role or "Member",
+            hours_per_week=0,
+            equity=req.equity or 0.0,
+            salary=0.0,
+            bonus="",
+            vesting="",
+            responsibility="",
+            authority=json.dumps([]),
+            expectations=json.dumps([]),
+            status="Invited",
+            start_date=time.strftime("%Y-%m-%d"),
+            planned_change="",
+            last_updated=time.strftime("%Y-%m-%d")
+        )
+        db.add(member)
 
     if req.role is not None:
         member.role = req.role
@@ -290,6 +351,28 @@ async def get_user_org_info(
         "member_type": member.member_type,
         "last_updated": member.last_updated,
     }
+
+@router.get("/{org_id}/users", response_model=List[UserSchema])
+async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
+    users = (
+        db.query(UserModel)
+        .join(OrgMemberModel, OrgMemberModel.user_id == UserModel.id)
+        .filter(OrgMemberModel.org_id == org_id)
+        .all()
+    )
+
+    if not users:
+        raise HTTPException(status_code=404, detail="No users found for this organization")
+
+    return [
+        UserSchema(
+            id=u.id,
+            fullName=u.full_name,
+            email=u.email,
+            avatarUrl=u.avatar_url,
+            current_org_id=u.current_org_id
+        ) for u in users
+    ]
 
 
 # GET /auth/{org_id}/set-onboarding
@@ -338,6 +421,8 @@ async def get_workspace(email: str, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(
         OrganizationModel.id == user.current_org_id
     ).first()
+    print(f"[get_workspace] using current_org_id = {user.current_org_id}")
+
 
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -522,6 +607,35 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
         status=member.status
     )
 
+
+# GET /auth/user-by-email/{email}
+@router.get("/user-by-email/{email}", response_model=UserSchema)
+async def get_user_by_email(email: str, db: Session = Depends(get_db)):
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return UserSchema(
+        id=user.id,
+        fullName=user.full_name,
+        email=user.email,
+        avatarUrl=user.avatar_url,
+        role="Founder",
+        current_org_id=user.current_org_id
+    )
+    
+    db.commit()
+    db.refresh(user)
+    
+    return UserSchema(
+        id=user.id,
+        fullName=user.full_name,
+        email=user.email,
+        avatarUrl=user.avatar_url,
+        role="Founder",
+        current_org_id=user.current_org_id
+    )
+
 # PATCH /auth/user
 @router.patch("/user", response_model=UserSchema)
 async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
@@ -535,6 +649,8 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(user)
+    print(f"[update_user] setting current_org_id = {data['current_org_id']}")
+
     
     return UserSchema(
         id=user.id,
