@@ -3,8 +3,9 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from database import get_db
 from models import User as UserModel, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel
+from datetime import date
+from database import get_db
 import time
 import json
 
@@ -15,8 +16,19 @@ class UserSchema(BaseModel):
     fullName: str
     email: str
     role: Optional[str] = "Founder"
+    permissionLevel: Optional[str] = "ADMIN"
     avatarUrl: Optional[str] = None
     current_org_id: Optional[str] = None
+    authority: Optional[str] = None
+    commitment: Optional[int] = None
+    startDate: Optional[str] = None
+    plannedChange: Optional[str] = None
+    salary: Optional[float] = None
+    bonus: Optional[str] = None
+    equity: Optional[float] = None
+    vesting: Optional[str] = None
+    lastUpdated: Optional[str] = None
+    status: Optional[str] = None
     class Config:
         orm_mode = True
 
@@ -65,7 +77,10 @@ class SetUserOrgInfoRequest(BaseModel):
     user_id: str
     org_id: str
     role: Optional[str] = None
+    permission_level: Optional[str] = None
     equity: Optional[float] = None
+    vesting: Optional[str] = None
+    commitment: Optional[int] = None
 
 class SetOnboardingRequest(BaseModel):
     step: int
@@ -252,10 +267,10 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
             "long_term_involvement"
         ]),
         status="Active",
-        start_date=time.strftime("%Y-%m-%d"),
+        start_date = date.today(),
         planned_change="",
         permission_level="ADMIN",
-        last_updated=time.strftime("%Y-%m-%d")
+        last_updated=date.today()
     )
     db.add(new_member)
 
@@ -296,21 +311,21 @@ async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(ge
             id=member_id,
             user_id=req.user_id,
             org_id=req.org_id,
-            member_type=req.role or "Member",
-            role=req.role or "Member",
-            hours_per_week=0,
+            member_type=req.role or "Founder",
+            role=req.role or "Founder",
+            hours_per_week=req.commitment,
             equity=req.equity or 0.0,
             salary=0.0,
             bonus="",
-            vesting="",
+            vesting=req.vesting,
             responsibility="",
             authority=json.dumps([]),
             expectations=json.dumps([]),
             status="Invited",
-            start_date=time.strftime("%Y-%m-%d"),
+            start_date = date.today(),
             planned_change="",
-            last_updated=time.strftime("%Y-%m-%d"),
-            permission_level="ADMIN" if req.role == "Founder" else "Read"
+            last_updated=date.today(),
+            permission_level=req.permission_level
         )
         db.add(member)
 
@@ -322,7 +337,7 @@ async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(ge
     if req.equity is not None:
         member.equity = req.equity
 
-    member.last_updated = time.strftime("%Y-%m-%d")
+    member.last_updated = date.today()
     
     try:
         db.commit()
@@ -350,20 +365,23 @@ async def get_user_org_info(
             detail="Organization membership not found"
         )
 
+    #print(member)
     return {
         "user_id": member.user_id,
         "org_id": member.org_id,
         "role": member.role,
         "equity": member.equity,
         "member_type": member.member_type,
-        "last_updated": member.last_updated,
+        "last_updated": member.last_updated.strftime("%Y-%m-%d") if member.last_updated else None,
+        "start_date": member.start_date.strftime("%Y-%m-%d") if member.start_date else None,
         "permission_level": member.permission_level
     }
 
+# GET /auth/{org_id}/users
 @router.get("/{org_id}/users", response_model=List[UserSchema])
 async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
     users = (
-        db.query(UserModel)
+        db.query(UserModel, OrgMemberModel)
         .join(OrgMemberModel, OrgMemberModel.user_id == UserModel.id)
         .filter(OrgMemberModel.org_id == org_id)
         .all()
@@ -372,16 +390,29 @@ async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
     if not users:
         raise HTTPException(status_code=404, detail="No users found for this organization")
 
-    return [
-        UserSchema(
-            id=u.id,
-            fullName=u.full_name,
-            email=u.email,
-            avatarUrl=u.avatar_url,
-            current_org_id=u.current_org_id
-        ) for u in users
-    ]
+    result = []
+    for u, m in users:
+        result.append(
+            UserSchema(
+                id=u.id,
+                fullName=u.full_name,
+                email=u.email,
+                avatarUrl=u.avatar_url,
+                current_org_id=u.current_org_id,
+                role=m.role,
+                authority=m.authority,
+                commitment=m.hours_per_week,
+                equity=m.equity,
+                vesting=m.vesting,
+                status=m.status,
+                permission_level=m.permission_level,
+                startDate=m.start_date.strftime("%Y-%m-%d") if m.start_date else None,
+                lastUpdated=m.last_updated.strftime("%Y-%m-%d") if m.last_updated else None,
+            )
+        )
+        
 
+    return result
 
 # GET /auth/{org_id}/set-onboarding
 @router.post("/{org_id}/set-onboarding", response_model=Workspace)
@@ -522,6 +553,7 @@ async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db
         onboardingStep=org.onboarding_step
     )
 
+
 # GET /auth/UserOrgInfo
 @router.get("/auth/UserOrgInfo", response_model=UserOrgInfo)
 async def get_my_role(email: str, db: Session = Depends(get_db)):
@@ -557,14 +589,14 @@ async def get_my_role(email: str, db: Session = Depends(get_db)):
         responsibility=member.responsibility or "",
         authority=json.loads(member.authority or "[]"),
         commitment=member.hours_per_week,
-        startDate=member.start_date or "",
+        startDate=member.start_date.strftime("%Y-%m-%d") if member.start_date else None,
         plannedChange=member.planned_change or "",
         salary=member.salary or 0.0,
         bonus=member.bonus or "",
         equity=member.equity or 0.0,
         vesting=member.vesting or "",
         expectations=json.loads(member.expectations or "[]"),
-        lastUpdated=member.last_updated or "",
+        lastUpdated=member.last_updated.strftime("%Y-%m-%d") if member.last_updated else None,
         status=member.status
     )
 
@@ -587,7 +619,6 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     if "responsibility" in data: member.responsibility = data["responsibility"]
     if "authority" in data: member.authority = json.dumps(data["authority"])
     if "commitment" in data: member.hours_per_week = data["commitment"]
-    if "startDate" in data: member.start_date = data["startDate"]
     if "plannedChange" in data: member.planned_change = data["plannedChange"]
     if "salary" in data: member.salary = data["salary"]
     if "bonus" in data: member.bonus = data["bonus"]
@@ -596,7 +627,7 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     if "expectations" in data: member.expectations = json.dumps(data["expectations"])
     if "status" in data: member.status = data["status"]
 
-    member.last_updated = time.strftime("%Y-%m-%d")
+    member.last_updated = date.today()
     db.commit()
 
     return UserOrgInfo(
@@ -604,14 +635,14 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
         responsibility=member.responsibility,
         authority=json.loads(member.authority),
         commitment=member.hours_per_week,
-        startDate=member.start_date,
+        startDate=member.start_date.strftime("%Y-%m-%d") if member.start_date else None,
         plannedChange=member.planned_change,
         salary=member.salary,
         bonus=member.bonus,
         equity=member.equity,
         vesting=member.vesting,
         expectations=json.loads(member.expectations),
-        lastUpdated=member.last_updated,
+        lastUpdated=member.last_updated.strftime("%Y-%m-%d") if member.last_updated else None,
         status=member.status
     )
 
@@ -623,15 +654,6 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return UserSchema(
-        id=user.id,
-        fullName=user.full_name,
-        email=user.email,
-        avatarUrl=user.avatar_url,
-        role="Founder",
-        current_org_id=user.current_org_id
-    )
-    
     db.commit()
     db.refresh(user)
     
@@ -640,7 +662,6 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
         fullName=user.full_name,
         email=user.email,
         avatarUrl=user.avatar_url,
-        role="Founder",
         current_org_id=user.current_org_id
     )
 

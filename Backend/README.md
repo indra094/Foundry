@@ -27,7 +27,6 @@
 C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
 
    .\venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
    uvicorn main:app --reload
 
 ## Running the Server

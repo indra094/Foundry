@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, JSON
+from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, Text, JSON, Date
 from database import Base
 from sqlalchemy import ForeignKey
+from datetime import date
 import datetime
 from sqlalchemy.orm import relationship
 import uuid
@@ -57,14 +58,14 @@ class OrgMember(Base):
     responsibility = Column(String, nullable=True)
     authority = Column(Text, default="[]") # JSON string of authority tags
     hours_per_week = Column(Integer, default=40)
-    start_date = Column(String, nullable=True)
+    start_date = Column(Date, nullable=True)
     planned_change = Column(String, default="none")
     salary = Column(Float, default=0.0)
     bonus = Column(String, default="None")
     equity = Column(Float, default=0.0)
     vesting = Column(String, default="4 yrs, 1 yr cliff")
     expectations = Column(Text, default="[]") # JSON string of accountability items
-    last_updated = Column(String, nullable=True)
+    last_updated = Column(Date, nullable=True)
     status = Column(String, default="Active")
     
     cash_contribution = Column(Float, default=0.0)
