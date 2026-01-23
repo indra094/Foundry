@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+from workers import start_workers
 
 from config import settings
 
@@ -23,8 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+
 @app.get("/")
 async def root():
+    start_workers()
     return {"message": "Foundry Backend API is running"}
 
 # Include routers

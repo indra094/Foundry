@@ -3,119 +3,18 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from models import User as UserModel, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel
+from models import User as UserModel, FounderAlignmentModel, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel
+from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel
+from typing import Any, Dict
 from datetime import date
 from database import get_db
 import time
 import json
+from fastapi import BackgroundTasks
+from queue import Queue
+from workers import founder_alignment_queue
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
-class UserSchema(BaseModel):
-    id: str
-    fullName: str
-    email: str
-    role: Optional[str] = "Founder"
-    permissionLevel: Optional[str] = "ADMIN"
-    avatarUrl: Optional[str] = None
-    current_org_id: Optional[str] = None
-    authority: Optional[str] = None
-    commitment: Optional[int] = None
-    startDate: Optional[str] = None
-    plannedChange: Optional[str] = None
-    salary: Optional[float] = None
-    bonus: Optional[str] = None
-    equity: Optional[float] = None
-    vesting: Optional[str] = None
-    lastUpdated: Optional[str] = None
-    status: Optional[str] = None
-    class Config:
-        orm_mode = True
-
-class Workspace(BaseModel):
-    id: str
-    name: str
-    industry: Optional[str] = None
-    geography: Optional[str] = None
-    type: Optional[str] = None
-    stage: Optional[str] = None
-
-    # 🔥 ADD
-    problem: Optional[str] = None
-    solution: Optional[str] = None
-    customer: Optional[str] = None
-
-    onboardingStep: Optional[int] = None
-
-
-class UserOrgInfo(BaseModel):
-    title: str
-    responsibility: str
-    authority: List[str]
-    commitment: int
-    startDate: str
-    plannedChange: str
-    salary: float
-    bonus: str
-    equity: float
-    vesting: str
-    expectations: List[str]
-    lastUpdated: str
-    status: str
-
-class LoginRequest(BaseModel):
-    email: str
-
-class CreateUserRequest(BaseModel):
-    fullName: str
-    email: str
-    geography: Optional[str] = None
-    org_id: Optional[str] = None
-    status: str
-
-class SetUserOrgInfoRequest(BaseModel):
-    user_id: str
-    org_id: str
-    role: Optional[str] = None
-    permission_level: Optional[str] = None
-    equity: Optional[float] = None
-    vesting: Optional[str] = None
-    commitment: Optional[int] = None
-
-class SetOnboardingRequest(BaseModel):
-    step: int
-
-class MarketSchema(BaseModel):
-    tam_value: int
-    growth_rate_percent: int
-    growth_index: int
-    insight: str
-
-class PersonaSchema(BaseModel):
-    name: str
-    pain: str
-    solution: str
-
-class MilestoneSchema(BaseModel):
-    label: str
-    duration_days: int
-    is_active: bool
-
-class RoadmapSchema(BaseModel):
-    recommended_stage: str
-    min_capital: int
-    max_capital: int
-    milestones: List[MilestoneSchema]
-
-class AnalysisPayload(BaseModel):
-    seed_funding_probability: int
-    market: MarketSchema
-    strengths: List[str]
-    weaknesses: List[str]
-    investor_verdict: str
-    personas: List[PersonaSchema]
-    roadmap: RoadmapSchema
-
 
 # POST /auth/login
 @router.post("/login", response_model=UserSchema)
@@ -156,6 +55,8 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         current_org_id=request.org_id,
         status=request.status
     )
+
+    founder_alignment_queue.put(request.org_id)
 
     db.add(new_user)
 
@@ -815,3 +716,26 @@ def get_analysis(
             ]
         }
     }
+
+@router.get("/{org_id}/founder-alignment", response_model=FounderAlignmentResponseModel)
+async def get_alignment(org_id: str, db: Session = Depends(get_db)):
+    alignment = (
+        db.query(FounderAlignmentModel)
+        .filter(FounderAlignmentModel.org_id == org_id)
+        .order_by(FounderAlignmentModel.generated_at.desc())
+        .first()
+    )
+
+    size = founder_alignment_queue.qsize()
+
+    return {
+        "alignment": alignment,
+        "size": size
+    }
+
+
+@router.post("/{org_id}/founder-alignment", status_code=200)
+async def create_or_update_alignment(org_id: str, background_tasks: BackgroundTasks):
+    founder_alignment_queue.put(org_id)
+
+    return {"status": "ok"}

@@ -150,3 +150,25 @@ class AIIdeaAnalysis(Base):
     weaknesses = Column(JSON, nullable=True)
     personas = Column(JSON, nullable=True)
     roadmap = Column(JSON, nullable=True)
+
+class FounderAlignmentModel(Base):
+    __tablename__ = "founder_alignment"
+
+    id = Column(String, primary_key=True, default=gen_id, index=True)
+    org_id = Column(String, ForeignKey("organizations.id"), nullable=False)
+
+    # Summary
+    score = Column(Integer, nullable=False)
+    risk_level = Column(String, nullable=False)
+
+    # JSON fields
+    factors = Column(JSON, nullable=False)
+    risks = Column(JSON, nullable=True)
+    actions = Column(JSON, nullable=True)
+
+    # Insight
+    primary_risk = Column(String, nullable=True)
+    insight = Column(Text, nullable=True)
+
+    generated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    model_version = Column(String, default="v1")
