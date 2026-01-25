@@ -18,6 +18,7 @@
    .\venv\Scripts\Activate.ps1
    ```
 
+Install rust and vs build tools
 3. **Install dependencies:**
    ```powershell
    pip install -r requirements.txt

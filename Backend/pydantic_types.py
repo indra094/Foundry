@@ -1,5 +1,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
+from datetime import datetime
 
 class UserSchema(BaseModel):
     id: str
@@ -113,11 +114,11 @@ class FounderAlignmentResponse(BaseModel):
     score: int
     risk_level: str
     factors: Dict[str, Any]
-    risks: Optional[List[str]] = None
+    risks: Optional[List[Dict[str, Any]]] = None
     actions: Optional[List[Dict[str, str]]] = None
     primary_risk: Optional[str] = None
     insight: Optional[str] = None
-    generated_at: str
+    generated_at: datetime
     model_version: str
 
     class Config:

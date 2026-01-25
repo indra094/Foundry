@@ -5,3 +5,4 @@ sqlalchemy
 
 google-generativeai
 pydantic
+google-genai

@@ -56,7 +56,7 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         status=request.status
     )
 
-    founder_alignment_queue.put(request.org_id)
+    founder_alignment_queue.put({"org_id":request.org_id})
 
     db.add(new_user)
 
@@ -736,6 +736,8 @@ async def get_alignment(org_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{org_id}/founder-alignment", status_code=200)
 async def create_or_update_alignment(org_id: str, background_tasks: BackgroundTasks):
-    founder_alignment_queue.put(org_id)
+    
+    founder_alignment_queue.put({"org_id":org_id})
+    #print("post alignment")
 
     return {"status": "ok"}

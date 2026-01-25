@@ -14,6 +14,8 @@ from database import engine, Base
 import models # Import models to register them with Base
 Base.metadata.create_all(bind=engine)
 
+
+start_workers()
 app = FastAPI(title="Foundry Backend")
 
 app.add_middleware(
@@ -28,7 +30,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    start_workers()
+    
     return {"message": "Foundry Backend API is running"}
 
 # Include routers
