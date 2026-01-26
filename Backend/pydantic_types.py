@@ -128,3 +128,21 @@ class FounderAlignmentResponseModel(BaseModel):
     alignment: Optional[FounderAlignmentResponse] = None
     size: int
 
+
+class FinancialsSchema(BaseModel):
+    org_id: str
+    monthly_revenue: Optional[int] = None
+    revenue_trend: Optional[str] = None
+    revenue_stage: Optional[str] = None
+    cash_in_bank: Optional[int] = None
+    monthly_burn: Optional[int] = None
+    cost_structure: Optional[str] = None
+    pricing_model: Optional[str] = None
+    price_per_customer: Optional[float] = None
+    customers_in_pipeline: Optional[int] = None
+    data_confidence: Optional[str] = "Rough"
+    last_updated: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+

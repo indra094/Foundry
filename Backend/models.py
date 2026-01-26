@@ -172,3 +172,24 @@ class FounderAlignmentModel(Base):
 
     generated_at = Column(DateTime, default=datetime.datetime.utcnow)
     model_version = Column(String, default="v1")
+
+class FinancialsModel(Base):
+    __tablename__ = "financials"
+
+    org_id = Column(String, ForeignKey("organizations.id"), primary_key=True)
+    
+    monthly_revenue = Column(Integer, nullable=True)
+    revenue_trend = Column(String, nullable=True) # Growing, Flat, Declining
+    revenue_stage = Column(String, nullable=True) # Pre-revenue, Early, Recurring
+    
+    cash_in_bank = Column(Integer, nullable=True)
+    monthly_burn = Column(Integer, nullable=True)
+    cost_structure = Column(String, nullable=True) # Fixed, Variable, Mix
+    
+    pricing_model = Column(String, nullable=True) # Subscription, Usage, One-time, Enterprise
+    price_per_customer = Column(Float, nullable=True)
+    customers_in_pipeline = Column(Integer, nullable=True) # or customers/month
+    
+    data_confidence = Column(String, default="Rough") # Rough, Precise
+    
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
