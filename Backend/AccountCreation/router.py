@@ -12,7 +12,7 @@ import time
 import json
 from fastapi import BackgroundTasks
 from queue import Queue
-from workers import founder_alignment_queue
+from workers import founder_alignment_queue, idea_analysis_queue
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -53,7 +53,8 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         email=request.email,
         avatar_url=None,
         current_org_id=request.org_id,
-        status=request.status
+        status=request.status,
+        industry_experience=request.industry_experience
     )
 
     founder_alignment_queue.put({"org_id":request.org_id})
@@ -75,7 +76,8 @@ async def create_user(request: CreateUserRequest, db: Session = Depends(get_db))
         role="Founder",
         avatarUrl=new_user.avatar_url,
         current_org_id=new_user.current_org_id,
-        status=new_user.status
+        status=new_user.status,
+        industry_experience=new_user.industry_experience
     )
 
 
@@ -98,7 +100,8 @@ async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
         email=request.email,
         avatar_url=None,
         current_org_id=None,
-        status=request.status
+        status=request.status,
+        industry_experience=request.industry_experience
     )
     db.add(new_user)
 
@@ -115,7 +118,8 @@ async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
         role="Founder",
         avatarUrl=new_user.avatar_url,
         current_org_id=new_user.current_org_id,
-        status=new_user.status
+        status=new_user.status,
+        industry_experience=new_user.industry_experience
     )
 
 # POST /auth/workspace
@@ -408,9 +412,7 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
 async def update_workspace_and_insights(org_id: str, data: dict, db: Session = Depends(get_db)):
     await update_workspace_service(org_id, data, db)
 
-    if "analysis" in data:
-        payload = AnalysisPayload(**data["analysis"])
-        await upsert_analysis(org_id, payload, db)
+    idea_analysis_queue.put({"org_id":org_id})
 
     return await get_workspace_by_id(org_id, db)
 
@@ -441,6 +443,7 @@ async def update_workspace_service(org_id: str, data: dict, db: Session):
 @router.patch("/{org_id}/workspace", response_model=Workspace)
 async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
     org = await update_workspace_service(org_id, data, db)
+    idea_analysis_queue.put({"org_id":org_id})
     return Workspace(
         id=org.id,
         name=org.name,
@@ -576,6 +579,7 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     if "fullName" in data: user.full_name = data["fullName"]
     if "avatarUrl" in data: user.avatar_url = data["avatarUrl"]
     if "current_org_id" in data: user.current_org_id = data["current_org_id"]  # 🔥 Allow switching orgs
+    if "industryExperience" in data: user.industry_experience = data["industryExperience"]
     
     db.commit()
     db.refresh(user)
@@ -588,7 +592,8 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
         email=user.email,
         avatarUrl=user.avatar_url,
         role="Founder",
-        current_org_id=user.current_org_id
+        current_org_id=user.current_org_id,
+        industry_experience=user.industry_experience
     )
 
 # POST /auth/google
@@ -609,7 +614,8 @@ async def google_signup(email: str, db: Session = Depends(get_db)):
         email=user.email,
         avatarUrl=user.avatar_url,
         role="Founder",
-        current_org_id=user.current_org_id
+        current_org_id=user.current_org_id,
+        industry_experience=user.industry_experience
     )
 
 async def upsert_analysis(
@@ -665,57 +671,23 @@ def get_analysis(
     org_id: str,
     db: Session = Depends(get_db)
 ):
-    analysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).first()
+    analysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).order_by(AIIdeaAnalysis.generated_at.desc()).first()
 
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
-
-    market = analysis.market or None
-    investor = analysis.investor or None
-    strengths = analysis.strengths or []
-    weaknesses = analysis.weaknesses or []
-    personas = analysis.personas or []
-    roadmap = analysis.roadmap or None
+    size = idea_analysis_queue.qsize()
 
     return {
-        "org_id": org_id,
-        "seed_funding_probability": analysis.seed_funding_probability,
-
-        "market": market and {
-            "tam_value": market.get("tam_value"),
-            "growth_rate_percent": market.get("growth_rate_percent"),
-            "growth_index": market.get("growth_index"),
-            "insight": market.get("insight"),
-        },
-
-        "investor_verdict": investor.get("verdict_text") if investor else None,
-
-        "strengths": [s for s in strengths],
-        "weaknesses": [w for w in weaknesses],
-
-        "personas": [
-            {
-                "name": p.get("name"),
-                "pain": p.get("pain"),
-                "solution": p.get("solution")
-            }
-            for p in personas
-        ],
-
-        "roadmap": roadmap and {
-            "recommended_stage": roadmap.get("recommended_stage"),
-            "min_capital": roadmap.get("min_capital"),
-            "max_capital": roadmap.get("max_capital"),
-            "milestones": [
-                {
-                    "label": m.get("label"),
-                    "duration_days": m.get("duration_days"),
-                    "is_active": bool(m.get("is_active"))
-                }
-                for m in (roadmap.get("milestones") or [])
-            ]
-        }
+        "analysis": analysis,
+        "size": size
     }
+
+@router.post("/{org_id}/idea-analysis", status_code=200)
+async def create_or_update_analysis(org_id: str, background_tasks: BackgroundTasks):
+    
+    idea_analysis_queue.put({"org_id":org_id})
+    #print("post analysis")
+
+    return {"status": "ok"}
+
 
 @router.get("/{org_id}/founder-alignment", response_model=FounderAlignmentResponseModel)
 async def get_alignment(org_id: str, db: Session = Depends(get_db)):

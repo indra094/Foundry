@@ -19,6 +19,7 @@ class User(Base):
 
     current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
     status = Column(String, default="Active")
+    industry_experience = Column(Integer, default=0)
 
 class OrganizationModel(Base):
     __tablename__ = "organizations"
@@ -150,6 +151,8 @@ class AIIdeaAnalysis(Base):
     weaknesses = Column(JSON, nullable=True)
     personas = Column(JSON, nullable=True)
     roadmap = Column(JSON, nullable=True)
+
+    generated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class FounderAlignmentModel(Base):
     __tablename__ = "founder_alignment"
