@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from models import User as UserModel, FounderAlignmentModel, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
+from models import User as UserModel, FounderAlignmentModel,InvestorReadiness, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
 from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel, FinancialsSchema
 from typing import Any, Dict
 from datetime import date
@@ -12,7 +12,7 @@ import time
 import json
 from fastapi import BackgroundTasks
 from queue import Queue
-from workers import founder_alignment_queue, idea_analysis_queue
+from workers import founder_alignment_queue, idea_analysis_queue, investor_readiness_queue
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -759,6 +759,7 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
     
     db.commit()
     db.refresh(fin)
+    investor_readiness_queue.put({"org_id":org_id})
     
     return FinancialsSchema(
         org_id=fin.org_id,
@@ -774,3 +775,26 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
         data_confidence=fin.data_confidence,
         last_updated=fin.last_updated
     )
+
+# GET /auth/{org_id}/investor-readiness
+@router.get("/{org_id}/investor-readiness")
+def get_investor_readiness(
+    org_id: str,
+    db: Session = Depends(get_db)
+):
+    investor_readiness = db.query(InvestorReadiness).filter_by(id=org_id).order_by(InvestorReadiness.last_updated.desc()).first()
+
+    size = investor_readiness_queue.qsize()
+
+    return {
+        "investor_readiness": investor_readiness,
+        "size": size
+    }
+
+@router.post("/{org_id}/investor-readiness", status_code=200)
+async def create_or_update_investor_readiness(org_id: str, background_tasks: BackgroundTasks):
+    
+    investor_readiness_queue.put({"org_id":org_id})
+
+    return {"status": "ok"}
+

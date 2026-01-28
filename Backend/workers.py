@@ -1,7 +1,8 @@
+from models import InvestorReadiness
 import threading
 from queue import Queue
 import time
-from models import User as UserModel, AIIdeaAnalysis, FounderAlignmentModel, OrganizationModel as OrgModel, OrgMember as OrgMemberModel
+from models import User as UserModel, AIIdeaAnalysis,FinancialsModel, FounderAlignmentModel, OrganizationModel as OrgModel, OrgMember as OrgMemberModel
 from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel
 import json
 import os
@@ -12,9 +13,11 @@ from database import SessionLocal
 
 founder_alignment_queue = Queue()
 idea_analysis_queue = Queue()
+investor_readiness_queue = Queue()
+
 job_status = {}
 
-def build_prompt_from_org(org, founders):
+def build_prompt_from_org_and_founders(org, founders):
     """
     Build a structured prompt for AI idea analysis from organization data.
     """
@@ -156,7 +159,6 @@ def build_prompt_from_users(users):
             f"  Vesting Cliff (years): {org_member.vesting_cliff}\n"
             f"  Risk Tolerance: {org_member.risk_tolerance}\n"
             f"  Expectations: {org_member.expectations}\n"
-            f"  Last Updated: {org_member.last_updated}\n"
         )
 
     prompt = f"""
@@ -389,7 +391,7 @@ def idea_analysis_worker():
             if not users:
                 raise ValueError("No users found for this organization")
             
-            prompt = build_prompt_from_org(org, users)
+            prompt = build_prompt_from_org_and_founders(org, users)
             
 
             analysis = {
@@ -509,7 +511,289 @@ def idea_analysis_worker():
             idea_analysis_queue.task_done()
 
 
+def investor_readiness_worker():
+    """
+    Worker function to process investor readiness analysis tasks.
+    """
+    while True:
+        job = investor_readiness_queue.get()
+        org_id = job["org_id"]
+        job_id = org_id  # 1 job per org
+
+        # ✅ initialize job status safely
+        job_status[job_id] = {
+            "status": "RUNNING"
+        }
+
+        db = SessionLocal()
+
+        try:
+            # Process the job
+            print(f"Processing investor readiness analysis for job {job_id}")
+            org = db.query(OrgModel).filter_by(id=org_id).first()
+            if not org:
+                raise ValueError("No organization found for this ID")
+
+            financials = (
+                db.query(FinancialsModel)
+                .filter(FinancialsModel.org_id == org_id)
+                .first()
+            )
+
+            if not financials:
+                raise ValueError("No financials found for this organization")
+            
+            prompt = build_prompt_from_org_and_financials(org, financials)
+            
+            analysis = {
+                "readiness_score": 0.48,
+                "pushbacks": [
+                    {
+                        "title": "Why this team?",
+                        "points": [
+                            "CEO commitment is only 10 hrs/week",
+                            "CTO owns 65% equity"
+                        ]
+                    },
+                    {
+                        "title": "Who owns execution?",
+                        "points": [
+                            "No clear ownership of product delivery"
+                        ]
+                    }
+                ],
+                "fixes": [
+                    "Increase CEO time commitment",
+                    "Clarify ownership responsibilities",
+                    "Strengthen product roadmap"
+                ],
+                "demands": [
+                    {
+                        "label": "Equity Split",
+                        "value": "20%",
+                        "icon": "equity"
+                    },
+                    {
+                        "label": "Board Control",
+                        "value": "Quarterly Board Updates",
+                        "icon": "control"
+                    },
+                    {
+                        "label": "Milestone Metrics",
+                        "value": "Achieve MVP in 6 months",
+                        "icon": "milestones"
+                    }
+                ],
+                "simulated_reaction": [
+                    {"label": "Reject", "value": 0.7},
+                    {"label": "Soft Interest", "value": 0.2},
+                    {"label": "Fund", "value": 0.1}
+                ],
+                "investor_type": {
+                    "primary": "VC",
+                    "sectorFit": "Tech",
+                    "stageFit": "Seed",
+                    "mismatchFlags": ["Equity Disagreement", "Team Commitment"]
+                },
+                "recommendation": {
+                    "verdict": "Conditional",
+                    "reason": "Team alignment needs improvement before full funding"
+                },
+                "summary_insight": "The startup shows promise but needs better team alignment and clarity on execution ownership.",
+                "investor_mindset_quotes": [
+                    "I invest in people, not just ideas.",
+                    "Market traction is more important than a perfect plan.",
+                    "Equity and control always come first."
+                ],
+                "demand_warning": "High investor demands may delay fundraising.",
+                "next_action": {"label": "Improve Team Alignment", "targetScreen": "TeamAlignmentScreen"}
+            }
+
+
+            # -------------------------
+            # 🧠 Call the model here
+            # -------------------------
+            #analysis = query_model(
+            #    prompt=prompt,
+            #    model="gemini-3-pro-preview"
+            #)
+
+            # If your model returns a dict, use it directly
+            # Otherwise parse JSON here
+
+            # -------------------------
+            # 🔥 Save to DB
+            # -------------------------
+            
+            insights = db.query(InvestorReadiness).filter_by(id=org_id).first()
+            if not insights:
+                insights = InvestorReadiness(id=org_id)
+                db.add(insights)
+
+            # Populate fields from the JSON data
+            insights.readiness_score = analysis.get("readiness_score", 0)
+            insights.pushbacks = analysis.get("pushbacks", [])
+            insights.fixes = analysis.get("fixes", [])
+            insights.demands = analysis.get("demands", [])
+            insights.simulated_reaction = analysis.get("simulated_reaction", [])
+            insights.investor_type = analysis.get("investor_type", {})
+            insights.recommendation = analysis.get("recommendation", {})
+            insights.summary_insight = analysis.get("summary_insight", "")
+            insights.investor_mindset_quotes = analysis.get("investor_mindset_quotes", [])
+            insights.demand_warning = analysis.get("demand_warning", "")
+            insights.next_action = analysis.get("next_action", [])
+
+
+            db.commit()
+
+            
+            # Update job status
+            job_status[job_id]["status"] = "COMPLETED"
+            job_status[job_id]["result"] = {
+                "message": "Investor readiness analysis completed",
+                "job_id": job_id
+            }
+
+        except Exception as e:
+            print("Investor readiness Exception: ", str(e))
+            job_status[job_id]["status"] = "FAILED"
+            job_status[job_id]["error"] = str(e)
+
+        finally:
+            investor_readiness_queue.task_done()
+
+
+def build_prompt_from_org_and_financials(org, financials):
+    """
+    Build a structured prompt for AI idea analysis from organization data.
+    """
+
+    # --- Basic Org Info ---
+    startup_type = getattr(org, "type", None) or "Not specified"
+    problem_statement = getattr(org, "problem", None) or "Not specified"
+    solution_statement = getattr(org, "solution", None) or "Not specified"
+    
+    # Optional fields
+    name = getattr(org, "name", None) or "Not specified"
+    industry = getattr(org, "industry", None) or "Not specified"
+    geography = getattr(org, "geography", None) or "Not specified"
+    stage = getattr(org, "stage", None) or "Not specified"
+    customer = getattr(org, "customer", None) or "Not specified"
+
+    # Default values if not present
+    monthly_revenue = getattr(financials, "monthly_revenue", "Not specified")
+    revenue_trend = getattr(financials, "revenue_trend", "Not specified")
+    revenue_stage = getattr(financials, "revenue_stage", "Not specified")
+    
+    cash_in_bank = getattr(financials, "cash_in_bank", "Not specified")
+    monthly_burn = getattr(financials, "monthly_burn", "Not specified")
+    cost_structure = getattr(financials, "cost_structure", "Not specified")
+    
+    pricing_model = getattr(financials, "pricing_model", "Not specified")
+    price_per_customer = getattr(financials, "price_per_customer", "Not specified")
+    customers_in_pipeline = getattr(financials, "customers_in_pipeline", "Not specified")
+    
+    data_confidence = getattr(financials, "data_confidence", "Rough")
+
+    # --- Prompt Template ---
+    prompt = f"""
+You are an expert startup analyst with experience in venture capital and early-stage investments.
+
+Analyze the following startup information and produce a detailed investor insights report. Be opinionated, realistic, and precise.
+
+Startup Details:
+- Startup Name: {name}
+- Industry: {industry}
+- Geography: {geography}
+- Stage: {stage}
+- Customer: {customer}
+- Startup Field: {startup_type}
+- Problem Statement: {problem_statement}
+- Solution by Startup: {solution_statement}
+
+Financial Details:
+- Monthly Revenue: {monthly_revenue}
+- Revenue Trend: {revenue_trend}
+- Revenue Stage: {revenue_stage}
+- Cash in Bank: {cash_in_bank}
+- Monthly Burn: {monthly_burn}
+- Cost Structure: {cost_structure}
+- Pricing Model: {pricing_model}
+- Price per Customer: {price_per_customer}
+- Customers in Pipeline: {customers_in_pipeline}
+- Data Confidence: {data_confidence}
+
+Output your analysis strictly as **JSON** matching this TypeScript interface:
+
+interface InvestorReadinessData {{
+    readiness_score: number;
+
+    pushbacks: {{
+        title: string;
+        points: string[];
+    }}[];
+
+    fixes: string[];
+
+    demands: {{
+        label: string;
+        value: string;
+        icon: "equity" | "control" | "milestones" | "governance";
+    }}[];
+
+    simulated_reaction: {{
+        label: "Reject" | "Soft Interest" | "Fund";
+        value: number;
+    }}[];
+
+    investor_type: {{
+        primary: string;
+        sectorFit: string;
+        stageFit: string;
+        mismatchFlags: string[];
+    }};
+
+    recommendation: {{
+        verdict: "Delay Fundraising" | "Proceed" | "Conditional";
+        reason: string;
+    }};
+
+    summary_insight: string;
+
+    investor_mindset_quotes: string[];
+
+    demand_warning: string;
+
+    next_action: {{
+        label: string;
+        targetScreen: ScreenId;
+    }};
+}}
+
+Guidelines:
+- Provide realistic investor-style feedback with reasoning.
+- readiness_score should be 0.0–1.0.
+- Include 2–3 pushbacks with 2–4 points each.
+- Provide 3–5 actionable fixes.
+- Include 2–4 demands, using the allowed icon values.
+- Provide 3 simulated investor reactions with realistic probabilities.
+- investor_type should include sectorFit, stageFit, and mismatchFlags.
+- recommendation should be clear and justified.
+- Provide a concise one-paragraph summary_insight.
+- Include 3–5 short investorMindsetQuotes.
+- Add a one-line demandWarning highlighting potential risks.
+- Provide nextAction with a label and targetScreen.
+
+Make sure the JSON is **fully valid** and ready to use in TypeScript.
+"""
+
+    return prompt
+
+
+
+
 def start_workers():
     
     threading.Thread(target=founder_alignment_worker, daemon=True).start()
     threading.Thread(target=idea_analysis_worker, daemon=True).start()
+    threading.Thread(target=investor_readiness_worker, daemon=True).start()

@@ -196,3 +196,28 @@ class FinancialsModel(Base):
     data_confidence = Column(String, default="Rough") # Rough, Precise
     
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+
+class InvestorReadiness(Base):
+    __tablename__ = "investor_readiness"
+
+    id = Column(Integer, primary_key=True)
+
+    readiness_score = Column(Float, nullable=False)
+
+    pushbacks = Column(JSON, nullable=False)
+    fixes = Column(JSON, nullable=False)
+    demands = Column(JSON, nullable=False)
+
+    simulated_reaction = Column(JSON, nullable=False)
+    investor_type = Column(JSON, nullable=False)
+    recommendation = Column(JSON, nullable=False)
+
+    # 🆕 ADD THIS
+    summary_insight = Column(Text, nullable=True)
+    # one-paragraph investor-style summary
+
+    investor_mindset_quotes = Column(JSON, nullable=True)
+    demand_warning = Column(String, nullable=True)
+    next_action = Column(JSON, nullable=True)
+
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
