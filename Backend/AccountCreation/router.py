@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from models import User as UserModel, FounderAlignmentModel,InvestorReadiness, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
+from models import User as UserModel, FounderAlignmentModel, DashboardModel, InvestorReadiness, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
 from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel, FinancialsSchema
 from typing import Any, Dict
 from datetime import date
@@ -12,7 +12,7 @@ import time
 import json
 from fastapi import BackgroundTasks
 from queue import Queue
-from workers import founder_alignment_queue, idea_analysis_queue, investor_readiness_queue
+from workers import founder_alignment_queue, idea_analysis_queue, dashboard_queue, investor_readiness_queue
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
