@@ -221,3 +221,11 @@ class InvestorReadiness(Base):
     next_action = Column(JSON, nullable=True)
 
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+
+class DashboardModel(Base):
+    __tablename__ = "dashboard"
+
+    id = Column(Integer, primary_key=True)
+
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+    

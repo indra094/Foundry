@@ -9,11 +9,13 @@ import os
 from google import genai
 from google.genai import types
 from database import SessionLocal
+from models import DashboardModel
 
 
 founder_alignment_queue = Queue()
 idea_analysis_queue = Queue()
 investor_readiness_queue = Queue()
+dashboard_queue = Queue()
 
 job_status = {}
 

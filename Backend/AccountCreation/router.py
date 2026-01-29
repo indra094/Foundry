@@ -798,3 +798,26 @@ async def create_or_update_investor_readiness(org_id: str, background_tasks: Bac
 
     return {"status": "ok"}
 
+
+# GET /auth/{org_id}/dashboard
+@router.get("/{org_id}/dashboard")
+def get_dashboard(
+    org_id: str,
+    db: Session = Depends(get_db)
+):
+    dashboard = db.query(DashboardModel).filter_by(id=org_id).order_by(DashboardModel.last_updated.desc()).first()
+
+    size = dashboard_queue.qsize()
+
+    return {
+        "dashboard": dashboard,
+        "size": size
+    }
+
+@router.post("/{org_id}/dashboard", status_code=200)
+async def create_or_update_dashboard(org_id: str, background_tasks: BackgroundTasks):
+    
+    dashboard_queue.put({"org_id":org_id})
+
+    return {"status": "ok"}
+
