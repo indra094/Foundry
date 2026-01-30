@@ -345,8 +345,9 @@ def founder_alignment_worker():
             alignment.model_version = "v1"
             alignment.id = org_id
             alignment.org_id = org_id
-
+            
             db.commit()
+            dashboard_queue.put({"org_id":org_id})
 
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
@@ -495,6 +496,7 @@ def idea_analysis_worker():
             idea.version = 1
 
             db.commit()
+            dashboard_queue.put({"org_id":org_id})
 
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
@@ -648,6 +650,7 @@ def investor_readiness_worker():
 
             db.commit()
 
+            dashboard_queue.put({"org_id":org_id})
             
             # Update job status
             job_status[job_id]["status"] = "COMPLETED"
@@ -663,6 +666,178 @@ def investor_readiness_worker():
 
         finally:
             investor_readiness_queue.task_done()
+
+def dashboard_worker():
+    """
+    Worker function to process dashboard data.
+    """
+    while True:
+        job = dashboard_queue.get()
+        org_id = job["org_id"]
+        job_id = org_id  # 1 job per org
+
+        # ✅ initialize job status safely
+        job_status[job_id] = {
+            "status": "RUNNING"
+        }
+
+        db = SessionLocal()
+
+        try:
+            # Process the job
+            print(f"Processing dashboard data for job {job_id}")
+            org = db.query(OrgModel).filter_by(id=org_id).first()
+            if not org:
+                raise ValueError("No organization found for this ID")
+
+            financials = (
+                db.query(FinancialsModel)
+                .filter(FinancialsModel.org_id == org_id)
+                .first()
+            )
+
+            if not financials:
+                raise ValueError("No financials found for this organization")
+
+            members = db.query(OrgMemberModel).filter_by(org_id=org_id).all()
+
+            if not members:
+                raise ValueError("No members found for this organization")
+
+            alignments = db.query(FounderAlignmentModel).filter_by(org_id=org_id).all()
+
+            if not alignments:
+                raise ValueError("No alignments found for this organization")
+
+            ideaAnalysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).first()
+
+            if not ideaAnalysis:
+                raise ValueError("No idea analysis found for this organization")
+
+            investorReadiness = db.query(InvestorReadiness).filter_by(id=org_id).first()
+
+            if not investorReadiness:
+                raise ValueError("No investor readiness found for this organization")
+
+            
+            prompt = build_dashboard_prompt(org, financials, members, alignments, ideaAnalysis, investorReadiness)
+            
+            dashboard_data = {
+                "readiness_score": 0.48,
+                "pushbacks": [
+                    {
+                        "title": "Why this team?",
+                        "points": [
+                            "CEO commitment is only 10 hrs/week",
+                            "CTO owns 65% equity"
+                        ]
+                    },
+                    {
+                        "title": "Who owns execution?",
+                        "points": [
+                            "No clear ownership of product delivery"
+                        ]
+                    }
+                ],
+                "fixes": [
+                    "Increase CEO time commitment",
+                    "Clarify ownership responsibilities",
+                    "Strengthen product roadmap"
+                ],
+                "demands": [
+                    {
+                        "label": "Equity Split",
+                        "value": "20%",
+                        "icon": "equity"
+                    },
+                    {
+                        "label": "Board Control",
+                        "value": "Quarterly Board Updates",
+                        "icon": "control"
+                    },
+                    {
+                        "label": "Milestone Metrics",
+                        "value": "Achieve MVP in 6 months",
+                        "icon": "milestones"
+                    }
+                ],
+                "simulated_reaction": [
+                    {"label": "Reject", "value": 0.7},
+                    {"label": "Soft Interest", "value": 0.2},
+                    {"label": "Fund", "value": 0.1}
+                ],
+                "investor_type": {
+                    "primary": "VC",
+                    "sectorFit": "Tech",
+                    "stageFit": "Seed",
+                    "mismatchFlags": ["Equity Disagreement", "Team Commitment"]
+                },
+                "recommendation": {
+                    "verdict": "Conditional",
+                    "reason": "Team alignment needs improvement before full funding"
+                },
+                "summary_insight": "The startup shows promise but needs better team alignment and clarity on execution ownership.",
+                "investor_mindset_quotes": [
+                    "I invest in people, not just ideas.",
+                    "Market traction is more important than a perfect plan.",
+                    "Equity and control always come first."
+                ],
+                "demand_warning": "High investor demands may delay fundraising.",
+                "next_action": {"label": "Improve Team Alignment", "targetScreen": "TeamAlignmentScreen"}
+            }
+
+
+            # -------------------------
+            # 🧠 Call the model here
+            # -------------------------
+            #dashboard_data = query_model(
+            #    prompt=prompt,
+            #    model="gemini-3-pro-preview"
+            #)
+
+            # If your model returns a dict, use it directly
+            # Otherwise parse JSON here
+
+            # -------------------------
+            # 🔥 Save to DB
+            # -------------------------
+            
+            dashboard = db.query(DashboardModel).filter_by(id=org_id).first()
+            if not dashboard:
+                dashboard = DashboardModel(id=org_id)
+                db.add(dashboard)
+
+            # Populate fields from the JSON data
+            dashboard.verdict=dashboard_data["verdict"]
+            dashboard.thesis=dashboard_data["thesis"]
+            dashboard.killer_insight=dashboard_data["killer_insight"]
+            dashboard.killer_insight_risk=dashboard_data.get("killer_insight_risk")
+            dashboard.killer_insight_confidence=dashboard_data.get("killer_insight_confidence")
+            dashboard.runway_months=dashboard_data.get("runway_months")
+            dashboard.burn_rate=dashboard_data.get("burn_rate")
+            dashboard.capital_recommendation=dashboard_data.get("capital_recommendation")
+            dashboard.top_actions=dashboard_data["top_actions"]
+            dashboard.data_sources=dashboard_data.get("data_sources")
+            dashboard.model_version=dashboard_data.get("model_version", "v1")
+
+            db.commit()
+
+            
+            # Update job status
+            job_status[job_id]["status"] = "COMPLETED"
+            job_status[job_id]["result"] = {
+                "message": "Investor readiness analysis completed",
+                "job_id": job_id
+            }
+
+        except Exception as e:
+            print("Investor readiness Exception: ", str(e))
+            job_status[job_id]["status"] = "FAILED"
+            job_status[job_id]["error"] = str(e)
+
+        finally:
+            investor_readiness_queue.task_done()
+
 
 
 def build_prompt_from_org_and_financials(org, financials):
@@ -791,11 +966,151 @@ Make sure the JSON is **fully valid** and ready to use in TypeScript.
 
     return prompt
 
+def build_organization_json(org: OrgModel):
+    return {
+        "industry": org.industry,
+        "geography": org.geography,
+        "stage": org.stage,
+        "problem": org.problem,
+        "solution": org.solution,
+        "customer": org.customer,
+        "risk_level": org.risk_level
+    }
+
+def build_org_members_json(members: list[OrgMemberModel]):
+    return [
+        {
+            "role": m.role,
+            "hours_per_week": m.hours_per_week,
+            "equity": m.equity,
+            "authority": m.authority,
+            "risk_tolerance": m.risk_tolerance
+        }
+        for m in members
+        if m.member_type == "Founder"
+    ]
 
 
+def build_founder_alignment_json(fa: FounderAlignmentModel):
+    return {
+        "score": fa.score,
+        "risk_level": fa.risk_level,
+        "primary_risk": fa.primary_risk,
+        "key_risks": fa.risks,
+        "recommended_actions": fa.actions
+    }
+
+def build_financials_json(fin: FinancialsModel):
+    return {
+        "monthly_revenue": fin.monthly_revenue,
+        "revenue_trend": fin.revenue_trend,
+        "cash_in_bank": fin.cash_in_bank,
+        "monthly_burn": fin.monthly_burn,
+        "runway_months": (
+            fin.cash_in_bank // fin.monthly_burn
+            if fin.cash_in_bank and fin.monthly_burn else None
+        ),
+        "data_confidence": fin.data_confidence
+    }
+
+def build_ai_idea_analysis_json(ai: AIIdeaAnalysis):
+    return {
+        "seed_funding_probability": ai.seed_funding_probability,
+        "market_summary": ai.market.get("summary") if ai.market else None,
+        "key_strengths": ai.strengths,
+        "key_weaknesses": ai.weaknesses
+    }
+
+def build_investor_readiness_json(ir: InvestorReadiness):
+    return {
+        "readiness_score": ir.readiness_score,
+        "summary_insight": ir.summary_insight,
+        "top_pushbacks": ir.pushbacks[:2] if ir.pushbacks else [],
+        "next_action": ir.next_action
+    }
+
+
+def build_dashboard_prompt(org, financials, founders, alignments, ideaAnalysis, investorReadiness):
+    """
+    dashboard: DashboardModel
+    returns: string prompt
+    """
+    organization_json = build_organization_json(org)
+    org_members_json = build_org_members_json(founders)
+    founder_alignment_json = build_founder_alignment_json(alignments)
+    financials_json = build_financials_json(financials)
+    ai_idea_analysis_json = build_ai_idea_analysis_json(ideaAnalysis)
+    investor_readiness_json = build_investor_readiness_json(investorReadiness)
+    
+    prompt = f"""
+You are a senior startup investor and operating partner.
+
+Your job is to synthesize multiple analyses into a single executive dashboard.
+Be decisive, opinionated, and concise. Avoid generic advice.
+
+INPUT DATA:
+
+Organization:
+{organization_json}
+
+Founders & Team:
+{org_members_json}
+
+Founder Alignment Analysis:
+{founder_alignment_json}
+
+Financials:
+{financials_json}
+
+AI Market & Idea Analysis:
+{ai_idea_analysis_json}
+
+Investor Readiness Analysis:
+{investor_readiness_json}
+
+---
+
+TASK:
+Generate a SINGLE executive dashboard object using the schema below.
+
+RULES:
+- Verdict must be ONE sharp phrase
+- Thesis must be 1–2 sentences max
+- Killer Insight must reveal a non-obvious risk or leverage point
+- Confidence should reflect data consistency (0.0–1.0)
+- Actions must reference the relevant screenId
+- Do NOT repeat raw data
+- Think like an investor deciding whether to take the meeting
+- If any output field data is missing, return null or empty list for that field
+
+OUTPUT FORMAT (JSON ONLY):
+
+{{
+  "verdict": "",
+  "thesis": "",
+  "killer_insight": "",
+  "killer_insight_risk": "",
+  "killer_insight_confidence": 0.0,
+  "runway_months": null,
+  "burn_rate": null,
+  "capital_recommendation": "",
+  "top_actions": [
+    {{
+      "title": "",
+      "why": "",
+      "risk": "",
+      "screenId": ""
+    }}
+  ],
+  "data_sources": [],
+  "model_version": "v1"
+}}
+"""
+    return prompt
 
 def start_workers():
     
     threading.Thread(target=founder_alignment_worker, daemon=True).start()
     threading.Thread(target=idea_analysis_worker, daemon=True).start()
     threading.Thread(target=investor_readiness_worker, daemon=True).start()
+    threading.Thread(target=dashboard_worker, daemon=True).start()

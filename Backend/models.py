@@ -9,69 +9,6 @@ import uuid
 def gen_id():
     return str(uuid.uuid4())
 
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(String, primary_key=True, index=True)
-    full_name = Column(String)
-    email = Column(String, unique=True, index=True)
-    avatar_url = Column(String, nullable=True)
-
-    current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
-    status = Column(String, default="Active")
-    industry_experience = Column(Integer, default=0)
-
-class OrganizationModel(Base):
-    __tablename__ = "organizations"
-
-    id = Column(String, primary_key=True)
-    name = Column(String)
-    slug = Column(String)
-
-    industry = Column(String, nullable=True)
-    geography = Column(String, nullable=True)
-    type = Column(String, nullable=True)
-    stage = Column(String, nullable=True)
-
-    # 🔥 ADD THESE
-    problem = Column(Text, nullable=True)
-    solution = Column(Text, nullable=True)
-    customer = Column(String, nullable=True)
-
-    onboarding_step = Column(Integer, default=0)
-    risk_level = Column(String, default="Low")
-    burn_rate = Column(Integer, default=0)
-    runway = Column(String, nullable=True)
-
-
-class OrgMember(Base):
-    __tablename__ = "org_members"
-
-    id = Column(String, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"))
-    org_id = Column(String, ForeignKey("organizations.id"))
-    
-    member_type = Column(String, default="Founder") # 'Founder' or 'Executive'
-    role = Column(String) # Title e.g. CEO, CTO
-    permission_level = Column(String, default="ADMIN") # 'Read', 'Write', 'Admin'
-
-    # UserOrgInfo detailed fields
-    responsibility = Column(String, nullable=True)
-    authority = Column(Text, default="[]") # JSON string of authority tags
-    hours_per_week = Column(Integer, default=40)
-    start_date = Column(Date, nullable=True)
-    planned_change = Column(String, default="none")
-    salary = Column(Float, default=0.0)
-    bonus = Column(String, default="None")
-    equity = Column(Float, default=0.0)
-    vesting = Column(String, default="4 yrs, 1 yr cliff")
-    expectations = Column(Text, default="[]") # JSON string of accountability items
-    last_updated = Column(Date, nullable=True)
-    status = Column(String, default="Active")
-    
-    cash_contribution = Column(Float, default=0.0)
-    risk_tolerance = Column(String, default="Medium")
-    vesting_cliff = Column(Integer, default=4)
 
 class Investor(Base):
     __tablename__ = "investors"
@@ -136,6 +73,71 @@ class Connection(Base):
     role = Column(String)
     company = Column(String)
     relevance = Column(String)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    full_name = Column(String)
+    email = Column(String, unique=True, index=True)
+    avatar_url = Column(String, nullable=True)
+
+    current_org_id = Column(String, ForeignKey("organizations.id"), nullable=True)
+    status = Column(String, default="Active")
+    industry_experience = Column(Integer, default=0)
+
+class OrganizationModel(Base):
+    __tablename__ = "organizations"
+
+    id = Column(String, primary_key=True)
+    name = Column(String)
+    slug = Column(String)
+
+    industry = Column(String, nullable=True)
+    geography = Column(String, nullable=True)
+    type = Column(String, nullable=True)
+    stage = Column(String, nullable=True)
+
+    # 🔥 ADD THESE
+    problem = Column(Text, nullable=True)
+    solution = Column(Text, nullable=True)
+    customer = Column(String, nullable=True)
+
+    onboarding_step = Column(Integer, default=0)
+    risk_level = Column(String, default="Low")
+    burn_rate = Column(Integer, default=0)
+    runway = Column(String, nullable=True)
+
+
+class OrgMember(Base):
+    __tablename__ = "org_members"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"))
+    org_id = Column(String, ForeignKey("organizations.id"))
+    
+    member_type = Column(String, default="Founder") # 'Founder' or 'Executive'
+    role = Column(String) # Title e.g. CEO, CTO
+    permission_level = Column(String, default="ADMIN") # 'Read', 'Write', 'Admin'
+
+    # UserOrgInfo detailed fields
+    responsibility = Column(String, nullable=True)
+    authority = Column(Text, default="[]") # JSON string of authority tags
+    hours_per_week = Column(Integer, default=40)
+    start_date = Column(Date, nullable=True)
+    planned_change = Column(String, default="none")
+    salary = Column(Float, default=0.0)
+    bonus = Column(String, default="None")
+    equity = Column(Float, default=0.0)
+    vesting = Column(String, default="4 yrs, 1 yr cliff")
+    expectations = Column(Text, default="[]") # JSON string of accountability items
+    last_updated = Column(Date, nullable=True)
+    status = Column(String, default="Active")
+    
+    cash_contribution = Column(Float, default=0.0)
+    risk_tolerance = Column(String, default="Medium")
+    vesting_cliff = Column(Integer, default=4)
 
 class AIIdeaAnalysis(Base):
     __tablename__ = "ai_idea_analysis"
@@ -227,5 +229,46 @@ class DashboardModel(Base):
 
     id = Column(Integer, primary_key=True)
 
-    last_updated = Column(DateTime, default=datetime.datetime.utcnow)
+    # --- Executive Summary ---
+    verdict = Column(String, nullable=False)  
+    # e.g. "Execution Stable", "Execution Risk", "Capital Constrained"
+
+    thesis = Column(Text, nullable=False)
+    # 1–2 sentence high-level summary
+
+    # --- Killer Insight ---
+    killer_insight = Column(Text, nullable=False)
+    killer_insight_risk = Column(String, nullable=True)
+    # e.g. "Founder Risk", "Capital Risk", "Market Risk"
+
+    killer_insight_confidence = Column(Float, nullable=True)
+    # 0.0–1.0 (nice AI credibility signal)
+
+    # --- Capital & Runway ---
+    runway_months = Column(Integer, nullable=True)
+    burn_rate = Column(Float, nullable=True)
+
+    capital_recommendation = Column(String, nullable=True)
+    # e.g. "Raise in 3 months", "Cut burn by 20%"
+
+    # --- Action Items (AI-driven) ---
+    top_actions = Column(JSON, nullable=False)
+    """
+    [
+      {
+        "title": "Founder equity misalignment",
+        "why": "...",
+        "risk": "...",
+        "screenId": "ALIGNMENT_OVERVIEW"
+      }
+    ]
+    """
+
+    # --- Metadata ---
+    data_sources = Column(JSON, nullable=True)
+    # e.g. ["founders", "financials", "market_inputs"]
+
+    last_computed_at = Column(DateTime, default=datetime.datetime.utcnow)
+    model_version = Column(String, nullable=True)
+
     
