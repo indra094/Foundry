@@ -23,13 +23,26 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == user.id,
+        OrgMemberModel.org_id == user.current_org_id
+    ).first()
+
     
+
     return UserSchema(
         id=user.id,
         fullName=user.full_name,
         email=user.email,
         avatarUrl=user.avatar_url,
-        current_org_id=user.current_org_id
+        current_org_id=user.current_org_id,
+        role=member.role if member else None,
+        permission_level=member.permission_level if member else None,
+        equity=member.equity if member else None,
+        vesting=member.vesting if member else None,
+        commitment=member.hours_per_week if member else None,
+        status=member.status if member else None
     )
 
 # POST /auth/user

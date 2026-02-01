@@ -7,7 +7,7 @@ class UserSchema(BaseModel):
     fullName: str
     email: str
     role: Optional[str] = "Founder"
-    permissionLevel: Optional[str] = "ADMIN"
+    permission_level: Optional[str] = "ADMIN"
     avatarUrl: Optional[str] = None
     current_org_id: Optional[str] = None
     authority: Optional[str] = None
