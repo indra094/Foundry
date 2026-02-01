@@ -805,10 +805,9 @@ def get_dashboard(
     org_id: str,
     db: Session = Depends(get_db)
 ):
-    dashboard = db.query(DashboardModel).filter_by(id=org_id).order_by(DashboardModel.last_updated.desc()).first()
+    dashboard = db.query(DashboardModel).filter_by(id=org_id).order_by(DashboardModel.last_computed_at.desc()).first()
 
     size = dashboard_queue.qsize()
-
     return {
         "dashboard": dashboard,
         "size": size

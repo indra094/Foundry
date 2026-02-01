@@ -224,20 +224,22 @@ class InvestorReadiness(Base):
 
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
 
+
+
 class DashboardModel(Base):
     __tablename__ = "dashboard"
 
     id = Column(Integer, primary_key=True)
 
     # --- Executive Summary ---
-    verdict = Column(String, nullable=False)  
+    verdict = Column(String, nullable=True)  
     # e.g. "Execution Stable", "Execution Risk", "Capital Constrained"
 
-    thesis = Column(Text, nullable=False)
+    thesis = Column(Text, nullable=True)
     # 1–2 sentence high-level summary
 
     # --- Killer Insight ---
-    killer_insight = Column(Text, nullable=False)
+    killer_insight = Column(Text, nullable=True)
     killer_insight_risk = Column(String, nullable=True)
     # e.g. "Founder Risk", "Capital Risk", "Market Risk"
 
@@ -252,7 +254,7 @@ class DashboardModel(Base):
     # e.g. "Raise in 3 months", "Cut burn by 20%"
 
     # --- Action Items (AI-driven) ---
-    top_actions = Column(JSON, nullable=False)
+    top_actions = Column(JSON, nullable=True)
     """
     [
       {
@@ -271,4 +273,3 @@ class DashboardModel(Base):
     last_computed_at = Column(DateTime, default=datetime.datetime.utcnow)
     model_version = Column(String, nullable=True)
 
-    

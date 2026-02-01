@@ -10,6 +10,7 @@ from google import genai
 from google.genai import types
 from database import SessionLocal
 from models import DashboardModel
+import datetime
 
 
 founder_alignment_queue = Queue()
@@ -685,7 +686,6 @@ def dashboard_worker():
 
         try:
             # Process the job
-            print(f"Processing dashboard data for job {job_id}")
             org = db.query(OrgModel).filter_by(id=org_id).first()
             if not org:
                 raise ValueError("No organization found for this ID")
@@ -704,7 +704,7 @@ def dashboard_worker():
             if not members:
                 raise ValueError("No members found for this organization")
 
-            alignments = db.query(FounderAlignmentModel).filter_by(org_id=org_id).all()
+            alignments = db.query(FounderAlignmentModel).filter_by(org_id=org_id).first()
 
             if not alignments:
                 raise ValueError("No alignments found for this organization")
@@ -719,73 +719,44 @@ def dashboard_worker():
             if not investorReadiness:
                 raise ValueError("No investor readiness found for this organization")
 
-            
+
             prompt = build_dashboard_prompt(org, financials, members, alignments, ideaAnalysis, investorReadiness)
             
             dashboard_data = {
-                "readiness_score": 0.48,
-                "pushbacks": [
-                    {
-                        "title": "Why this team?",
-                        "points": [
-                            "CEO commitment is only 10 hrs/week",
-                            "CTO owns 65% equity"
-                        ]
-                    },
-                    {
-                        "title": "Who owns execution?",
-                        "points": [
-                            "No clear ownership of product delivery"
-                        ]
-                    }
-                ],
-                "fixes": [
-                    "Increase CEO time commitment",
-                    "Clarify ownership responsibilities",
-                    "Strengthen product roadmap"
-                ],
-                "demands": [
-                    {
-                        "label": "Equity Split",
-                        "value": "20%",
-                        "icon": "equity"
-                    },
-                    {
-                        "label": "Board Control",
-                        "value": "Quarterly Board Updates",
-                        "icon": "control"
-                    },
-                    {
-                        "label": "Milestone Metrics",
-                        "value": "Achieve MVP in 6 months",
-                        "icon": "milestones"
-                    }
-                ],
-                "simulated_reaction": [
-                    {"label": "Reject", "value": 0.7},
-                    {"label": "Soft Interest", "value": 0.2},
-                    {"label": "Fund", "value": 0.1}
-                ],
-                "investor_type": {
-                    "primary": "VC",
-                    "sectorFit": "Tech",
-                    "stageFit": "Seed",
-                    "mismatchFlags": ["Equity Disagreement", "Team Commitment"]
+                "verdict": "High Potential, Early Risk",
+                "thesis": "The startup has a strong founding team with a clear market opportunity, but burn rate is high relative to runway.",
+                "killer_insight": "Founders are highly aligned on vision, but key technical hires are missing, creating execution risk.",
+                "killer_insight_risk": "Execution Risk",
+                "killer_insight_confidence": 0.8,
+                "runway_months": 6,
+                "burn_rate": 50000,
+                "capital_recommendation": "Consider a bridge round to extend runway while key hires are made.",
+                "top_actions": [
+                {
+                    "title": "Hire Lead Engineer",
+                    "why": "Critical technical capability gap that could delay product launch",
+                    "risk": "High",
+                    "screenId": "team_screen"
                 },
-                "recommendation": {
-                    "verdict": "Conditional",
-                    "reason": "Team alignment needs improvement before full funding"
-                },
-                "summary_insight": "The startup shows promise but needs better team alignment and clarity on execution ownership.",
-                "investor_mindset_quotes": [
-                    "I invest in people, not just ideas.",
-                    "Market traction is more important than a perfect plan.",
-                    "Equity and control always come first."
-                ],
-                "demand_warning": "High investor demands may delay fundraising.",
-                "next_action": {"label": "Improve Team Alignment", "targetScreen": "TeamAlignmentScreen"}
+                {
+                    "title": "Reduce Monthly Burn",
+                    "why": "Current burn rate risks running out of cash before revenue ramps",
+                    "risk": "Medium",
+                    "screenId": "financials_screen"
+                }
+            ],
+            "data_sources": [
+                "FinancialsModel",
+                "OrgMemberModel",
+                "FounderAlignmentModel",
+                "AIIdeaAnalysis",
+                "InvestorReadiness"
+            ],
+            "model_version": "v1"
             }
 
+
+            
 
             # -------------------------
             # 🧠 Call the model here
@@ -807,21 +778,20 @@ def dashboard_worker():
                 dashboard = DashboardModel(id=org_id)
                 db.add(dashboard)
 
-            # Populate fields from the JSON data
-            dashboard.verdict=dashboard_data["verdict"]
-            dashboard.thesis=dashboard_data["thesis"]
-            dashboard.killer_insight=dashboard_data["killer_insight"]
-            dashboard.killer_insight_risk=dashboard_data.get("killer_insight_risk")
-            dashboard.killer_insight_confidence=dashboard_data.get("killer_insight_confidence")
-            dashboard.runway_months=dashboard_data.get("runway_months")
-            dashboard.burn_rate=dashboard_data.get("burn_rate")
-            dashboard.capital_recommendation=dashboard_data.get("capital_recommendation")
-            dashboard.top_actions=dashboard_data["top_actions"]
-            dashboard.data_sources=dashboard_data.get("data_sources")
-            dashboard.model_version=dashboard_data.get("model_version", "v1")
+            dashboard.verdict = str(dashboard_data.get("verdict", ""))
+            dashboard.thesis = str(dashboard_data.get("thesis", ""))
+            dashboard.killer_insight = str(dashboard_data.get("killer_insight", ""))
+            dashboard.killer_insight_risk = str(dashboard_data.get("killer_insight_risk", "")) if dashboard_data.get("killer_insight_risk") else None
+            dashboard.killer_insight_confidence = float(dashboard_data.get("killer_insight_confidence", 0.0)) if dashboard_data.get("killer_insight_confidence") is not None else None
+            dashboard.runway_months = int(dashboard_data.get("runway_months")) if dashboard_data.get("runway_months") is not None else None
+            dashboard.burn_rate = float(dashboard_data.get("burn_rate")) if dashboard_data.get("burn_rate") is not None else None
+            dashboard.capital_recommendation = str(dashboard_data.get("capital_recommendation", "")) if dashboard_data.get("capital_recommendation") else None
+            dashboard.top_actions = dashboard_data.get("top_actions", [])
+            dashboard.data_sources = dashboard_data.get("data_sources", [])
+            dashboard.model_version = str(dashboard_data.get("model_version", "v1"))
+
 
             db.commit()
-
             
             # Update job status
             job_status[job_id]["status"] = "COMPLETED"
@@ -831,12 +801,12 @@ def dashboard_worker():
             }
 
         except Exception as e:
-            print("Investor readiness Exception: ", str(e))
+            print("Dashboard Exception: ", str(e))
             job_status[job_id]["status"] = "FAILED"
             job_status[job_id]["error"] = str(e)
 
         finally:
-            investor_readiness_queue.task_done()
+            dashboard_queue.task_done()
 
 
 
@@ -987,7 +957,6 @@ def build_org_members_json(members: list[OrgMemberModel]):
             "risk_tolerance": m.risk_tolerance
         }
         for m in members
-        if m.member_type == "Founder"
     ]
 
 
@@ -1106,6 +1075,7 @@ OUTPUT FORMAT (JSON ONLY):
   "model_version": "v1"
 }}
 """
+    print(f"Processing  data for job ")
     return prompt
 
 def start_workers():
