@@ -47,30 +47,30 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
 # POST /auth/user
 @router.post("/user", response_model=UserSchema)
-async def create_user(request: CreateUserRequest, db: Session = Depends(get_db)):
+async def create_user(request: dict, db: Session = Depends(get_db)):
     # 1. Validate duplicate email
-    existing_user = db.query(UserModel).filter(UserModel.email == request.email).first()
+    existing_user = db.query(UserModel).filter(UserModel.email == request.get("email")).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # 2. Create user id
     timestamp = int(time.time())
-    user_id = f"u_{request.org_id}_{timestamp}"
+    user_id = f"u_{request.get("org_id")}_{timestamp}"
 
-    print(f"[create_user] setting current_org_id = {request.org_id}")
+    print(f"[create_user] setting current_org_id = {request.get("org_id")}")
 
     # 3. Create new user
     new_user = UserModel(
         id=user_id,
-        full_name=request.fullName,
-        email=request.email,
+        full_name=request.get("fullName"),
+        email=request.get("email"),
         avatar_url=None,
-        current_org_id=request.org_id,
-        status=request.status,
-        industry_experience=request.industry_experience
+        current_org_id=request.get("org_id"),
+        status=request.get("status"),
+        industry_experience=request.get("industry_experience")
     )
 
-    founder_alignment_queue.put({"org_id":request.org_id})
+    founder_alignment_queue.put({"org_id":request.get("org_id")})
 
     db.add(new_user)
 

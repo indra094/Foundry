@@ -72,6 +72,8 @@ class SetUserOrgInfoRequest(BaseModel):
     equity: Optional[float] = None
     vesting: Optional[str] = None
     commitment: Optional[int] = None
+    industry_experience: Optional[str] = None
+    status: Optional[str] = None
 
 class SetOnboardingRequest(BaseModel):
     step: int

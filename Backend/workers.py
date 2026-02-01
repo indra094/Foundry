@@ -113,7 +113,7 @@ def query_model(prompt: str, model: str) -> dict:
     """
     Calls Gemini model with a prompt and returns parsed JSON response.
     """
-    
+    print("QUERYING...")
     try:
         client = genai.Client(api_key=os.environ.get("API_KEY"))
         # Call the Gemini 3 Pro Preview model
@@ -696,28 +696,14 @@ def dashboard_worker():
                 .first()
             )
 
-            if not financials:
-                raise ValueError("No financials found for this organization")
-
             members = db.query(OrgMemberModel).filter_by(org_id=org_id).all()
-
-            if not members:
-                raise ValueError("No members found for this organization")
 
             alignments = db.query(FounderAlignmentModel).filter_by(org_id=org_id).first()
 
-            if not alignments:
-                raise ValueError("No alignments found for this organization")
-
+           
             ideaAnalysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).first()
 
-            if not ideaAnalysis:
-                raise ValueError("No idea analysis found for this organization")
-
             investorReadiness = db.query(InvestorReadiness).filter_by(id=org_id).first()
-
-            if not investorReadiness:
-                raise ValueError("No investor readiness found for this organization")
 
 
             prompt = build_dashboard_prompt(org, financials, members, alignments, ideaAnalysis, investorReadiness)
@@ -948,6 +934,8 @@ def build_organization_json(org: OrgModel):
     }
 
 def build_org_members_json(members: list[OrgMemberModel]):
+    if not members:
+        return []
     return [
         {
             "role": m.role,
@@ -961,6 +949,14 @@ def build_org_members_json(members: list[OrgMemberModel]):
 
 
 def build_founder_alignment_json(fa: FounderAlignmentModel):
+    if not fa:
+        return {
+            "score": 0,
+            "risk_level": "None",
+            "primary_risk": "None",
+            "key_risks": [],
+            "recommended_actions": []
+        }
     return {
         "score": fa.score,
         "risk_level": fa.risk_level,
@@ -970,6 +966,15 @@ def build_founder_alignment_json(fa: FounderAlignmentModel):
     }
 
 def build_financials_json(fin: FinancialsModel):
+    if not fin:
+        return {
+            "monthly_revenue": 0,
+            "revenue_trend": "None",
+            "cash_in_bank": 0,
+            "monthly_burn": 0,
+            "runway_months": 0,
+            "data_confidence": "None"
+        }
     return {
         "monthly_revenue": fin.monthly_revenue,
         "revenue_trend": fin.revenue_trend,
@@ -983,6 +988,13 @@ def build_financials_json(fin: FinancialsModel):
     }
 
 def build_ai_idea_analysis_json(ai: AIIdeaAnalysis):
+    if not ai:
+        return {
+            "seed_funding_probability": 0,
+            "market_summary": "None",
+            "key_strengths": [],
+            "key_weaknesses": []
+        }
     return {
         "seed_funding_probability": ai.seed_funding_probability,
         "market_summary": ai.market.get("summary") if ai.market else None,
@@ -991,6 +1003,16 @@ def build_ai_idea_analysis_json(ai: AIIdeaAnalysis):
     }
 
 def build_investor_readiness_json(ir: InvestorReadiness):
+    if not ir:
+        return {
+            "readiness_score": 0,
+            "summary_insight": "None",
+            "top_pushbacks": [],
+            "next_action": {
+                "label": "None",
+                "targetScreen": "None"
+            }
+        }
     return {
         "readiness_score": ir.readiness_score,
         "summary_insight": ir.summary_insight,
