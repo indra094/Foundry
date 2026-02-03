@@ -315,10 +315,10 @@ def founder_alignment_worker():
                 "insight": "The founder team has a strong vision but a core execution risk exists due to the CTO’s part-time commitment and high equity. This is likely to cause conflict during scaling, hiring, and product delivery."
             }
 
-            analysis = query_model(
-                prompt=prompt,
-                model="gemini-3-pro-preview"
-            )
+            #analysis = query_model(
+            #    prompt=prompt,
+            #    model="gemini-3-pro-preview"
+            #)
 
             
 

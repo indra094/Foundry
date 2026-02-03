@@ -96,11 +96,11 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
 
 # POST /auth/signup
 @router.post("/signup", response_model=UserSchema)
-async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
+async def signup(request: dict, db: Session = Depends(get_db)):
     timestamp = int(time.time())
-    print(f"Signup request received for email: {request.email}")
+    print(f"Signup request received for email: {request.get("email")}")
 
-    existing_user = db.query(UserModel).filter(UserModel.email == request.email).first()
+    existing_user = db.query(UserModel).filter(UserModel.email == request.get("email")).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -109,12 +109,12 @@ async def signup(request: CreateUserRequest, db: Session = Depends(get_db)):
     user_id = f"u_{timestamp}"
     new_user = UserModel(
         id=user_id,
-        full_name=request.fullName,
-        email=request.email,
+        full_name=request.get("fullName"),
+        email=request.get("email"),
         avatar_url=None,
         current_org_id=None,
-        status=request.status,
-        industry_experience=request.industry_experience
+        status=request.get("status"),
+        industry_experience=request.get("industry_experience")
     )
     db.add(new_user)
 
@@ -338,7 +338,7 @@ def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends
     org = db.query(OrganizationModel).filter(OrganizationModel.id == org_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Workspace not found")
-
+    print(req.step)
     org.onboarding_step = max(org.onboarding_step or 1, req.step)
     db.commit()
     db.refresh(org)
