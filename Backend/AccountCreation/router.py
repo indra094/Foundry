@@ -171,7 +171,7 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
         hours_per_week=40,
         equity=100.0,
         salary=0.0,
-        bonus="",
+        bonus=0.0,
         vesting="4y, 1y cliff",
         responsibility="Overall company leadership",
         authority=json.dumps([
@@ -195,8 +195,9 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
     # 5. Commit everything
     try:
         db.commit()
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print("Failed to commit org creation:", e)
         raise HTTPException(status_code=500, detail="Failed to create org")
 
     # 6. Return workspace
@@ -216,47 +217,65 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
 
 # POST /auth/set-user-org-info
 @router.post("/set-user-org-info")
-async def set_user_org_info(req: SetUserOrgInfoRequest, db: Session = Depends(get_db)):
+async def set_user_org_info(req: dict, db: Session = Depends(get_db)):
     # Find the membership
     member = db.query(OrgMemberModel).filter(
-        OrgMemberModel.user_id == req.user_id,
-        OrgMemberModel.org_id == req.org_id
+        OrgMemberModel.user_id == req.get("user_id"),
+        OrgMemberModel.org_id == req.get("org_id")
     ).first()
 
+
     if not member:
-        member_id = f"mem_{req.org_id}_{req.user_id}"
+        member_id = f"mem_{req.get("org_id")}_{req.get("user_id")}"
         member = OrgMemberModel(
             id=member_id,
-            user_id=req.user_id,
-            org_id=req.org_id,
-            member_type=req.role or "Founder",
-            role=req.role or "Founder",
-            hours_per_week=req.commitment,
-            equity=req.equity or 0.0,
-            salary=0.0,
-            bonus="",
-            vesting=req.vesting,
+            user_id=req.get("user_id"),
+            org_id=req.get("org_id"),
+            member_type=req.get("role") or "Founder",
+            role=req.get("role") or "Founder",
+            hours_per_week=req.get("commitment"),
+            equity=req.get("equity") or 0.0,
+            salary=req.get("salary") or 0.0,
+            bonus=req.get("bonus") or 0.0,
+            vesting=req.get("vesting"),
             responsibility="",
             authority=json.dumps([]),
             expectations=json.dumps([]),
-            status=req.status,
+            status=req.get("status"),
             start_date = date.today(),
             planned_change="",
             last_updated=date.today(),
-            permission_level=req.permission_level
+            permission_level=req.get("permission_level")
         )
         db.add(member)
 
-    if req.role is not None:
-        member.role = req.role
-        member.member_type = req.role # Update member_type too? Maybe keep simplified "Founder"/"Executive" logic separate? 
-        # sticking to role for now as requested.
-    
-    if req.equity is not None:
-        member.equity = req.equity
+    if req.get("role") is not None:
+        member.role = req.get("role")
+        member.member_type = req.get("role")
+
+    if req.get("commitment") is not None:
+        member.hours_per_week = req.get("commitment")
+
+    if req.get("equity") is not None:
+        member.equity = req.get("equity")
+
+    if req.get("salary") is not None:
+        member.salary = req.get("salary")
+
+    if req.get("bonus") is not None:
+        member.bonus = req.get("bonus")
+
+    if req.get("vesting") is not None:
+        member.vesting = req.get("vesting")
+
+    if req.get("permission_level") is not None:
+        member.permission_level = req.get("permission_level")
+
+    if req.get("status") is not None:
+        member.status = req.get("status")
 
     member.last_updated = date.today()
-    
+
     try:
         db.commit()
     except Exception:
@@ -289,6 +308,9 @@ async def get_user_org_info(
         "org_id": member.org_id,
         "role": member.role,
         "equity": member.equity,
+        "salary": member.salary,
+        "bonus": member.bonus,
+        "vesting": member.vesting,
         "member_type": member.member_type,
         "last_updated": member.last_updated.strftime("%Y-%m-%d") if member.last_updated else None,
         "start_date": member.start_date.strftime("%Y-%m-%d") if member.start_date else None,
@@ -310,6 +332,8 @@ async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
 
     result = []
     for u, m in users:
+        print(u.full_name)
+        print (m.hours_per_week)
         result.append(
             UserSchema(
                 id=u.id,
@@ -321,6 +345,8 @@ async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
                 authority=m.authority,
                 commitment=m.hours_per_week,
                 equity=m.equity,
+                salary=m.salary,
+                bonus=m.bonus,
                 vesting=m.vesting,
                 status=m.status,
                 permission_level=m.permission_level,

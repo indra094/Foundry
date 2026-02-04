@@ -128,7 +128,7 @@ class OrgMember(Base):
     start_date = Column(Date, nullable=True)
     planned_change = Column(String, default="none")
     salary = Column(Float, default=0.0)
-    bonus = Column(String, default="None")
+    bonus = Column(Float, default=0.0)
     equity = Column(Float, default=0.0)
     vesting = Column(String, default="4 yrs, 1 yr cliff")
     expectations = Column(Text, default="[]") # JSON string of accountability items

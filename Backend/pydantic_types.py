@@ -15,7 +15,7 @@ class UserSchema(BaseModel):
     startDate: Optional[str] = None
     plannedChange: Optional[str] = None
     salary: Optional[float] = None
-    bonus: Optional[str] = None
+    bonus: Optional[float] = None
     equity: Optional[float] = None
     vesting: Optional[str] = None
     lastUpdated: Optional[str] = None
