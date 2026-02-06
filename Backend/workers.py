@@ -636,11 +636,11 @@ def investor_readiness_worker():
                 db.add(insights)
 
             # Populate fields from the JSON data
-            insights.readiness_score = analysis.get("readiness_score", 0)
+            insights.readiness_score = analysis.get("readiness_score", 0) * 100
             insights.pushbacks = analysis.get("pushbacks", [])
             insights.fixes = analysis.get("fixes", [])
             insights.demands = analysis.get("demands", [])
-            insights.simulated_reaction = analysis.get("simulated_reaction", [])
+            insights.simulated_reaction = analysis.get("simulated_reaction", []) * 100
             insights.investor_type = analysis.get("investor_type", {})
             insights.recommendation = analysis.get("recommendation", {})
             insights.summary_insight = analysis.get("summary_insight", "")
