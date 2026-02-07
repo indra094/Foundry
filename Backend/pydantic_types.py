@@ -36,7 +36,7 @@ class Workspace(BaseModel):
     solution: Optional[str] = None
     customer: Optional[str] = None
 
-    onboardingStep: Optional[int] = None
+    onboarding_step: Optional[int] = None
 
 
 class UserOrgInfo(BaseModel):

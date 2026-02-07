@@ -211,7 +211,7 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
         problem=new_org.problem,
         solution=new_org.solution,
         customer=new_org.customer,
-        onboardingStep=new_org.onboarding_step
+        onboarding_step=new_org.onboarding_step
     )
 
 
@@ -282,6 +282,7 @@ async def set_user_org_info(req: dict, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update org info")
 
+    founder_alignment_queue.put({"org_id":req.get("org_id")})
     return {"status": "success", "message": "User info updated"}
 
 
@@ -390,7 +391,7 @@ async def get_workspace_by_id(org_id: str, db: Session = Depends(get_db)):
         problem=org.problem,
         solution=org.solution,
         customer=org.customer,
-        onboardingStep=org.onboarding_step
+        onboarding_step=org.onboarding_step
     )
 
 
@@ -420,7 +421,7 @@ async def get_workspace(email: str, db: Session = Depends(get_db)):
         problem=org.problem,
         solution=org.solution,
         customer=org.customer,
-        onboardingStep=org.onboarding_step
+        onboarding_step=org.onboarding_step
     )
 
 # GET /auth/workspaces
@@ -442,7 +443,7 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
             industry=org.industry,
             type=org.type,
             stage=org.stage,
-            onboardingStep=org.onboarding_step
+            onboarding_step=org.onboarding_step
         ) for org in orgs
     ]
 
@@ -468,7 +469,7 @@ async def update_workspace_service(org_id: str, data: dict, db: Session):
     if "geography" in data: org.geography = data["geography"]
     if "type" in data: org.type = data["type"]
     if "stage" in data: org.stage = data["stage"]
-    if "onboardingStep" in data: org.onboarding_step = data["onboardingStep"]
+    if "onboarding_step" in data: org.onboarding_step = data["onboarding_step"]
     if "problem" in data: org.problem = data["problem"]
     if "solution" in data: org.solution = data["solution"]
     if "customer" in data: org.customer = data["customer"]
@@ -493,7 +494,7 @@ async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db
         problem=org.problem,
         solution=org.solution,
         customer=org.customer,
-        onboardingStep=org.onboarding_step
+        onboarding_step=org.onboarding_step
     )
 
 
