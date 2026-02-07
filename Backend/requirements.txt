@@ -6,3 +6,4 @@ sqlalchemy
 google-generativeai
 pydantic
 google-genai
+passlib[bcrypt]

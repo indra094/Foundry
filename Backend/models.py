@@ -87,6 +87,8 @@ class User(Base):
     status = Column(String, default="Active")
     industry_experience = Column(Integer, default=0)
 
+    password_hash = Column(String, nullable=False)
+
 class OrganizationModel(Base):
     __tablename__ = "organizations"
 

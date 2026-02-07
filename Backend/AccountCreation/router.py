@@ -13,8 +13,19 @@ import json
 from fastapi import BackgroundTasks
 from queue import Queue
 from workers import founder_alignment_queue, idea_analysis_queue, dashboard_queue, investor_readiness_queue
+from passlib.context import CryptContext
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
 
 # POST /auth/login
 @router.post("/login", response_model=UserSchema)
@@ -24,12 +35,13 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if not verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
     member = db.query(OrgMemberModel).filter(
         OrgMemberModel.user_id == user.id,
         OrgMemberModel.org_id == user.current_org_id
     ).first()
-
-    
 
     return UserSchema(
         id=user.id,
@@ -106,6 +118,11 @@ async def signup(request: dict, db: Session = Depends(get_db)):
 
     print("[signup] setting current_org_id = None")
 
+    password_plain = request.get("password")
+    if not password_plain:
+        raise HTTPException(status_code=400, detail="Password is required")
+    password_hash = hash_password(password_plain)
+
     user_id = f"u_{timestamp}"
     new_user = UserModel(
         id=user_id,
@@ -114,6 +131,7 @@ async def signup(request: dict, db: Session = Depends(get_db)):
         avatar_url=None,
         current_org_id=None,
         status=request.get("status"),
+        password_hash=password_hash,
         industry_experience=request.get("industry_experience")
     )
     db.add(new_user)

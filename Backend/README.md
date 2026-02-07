@@ -14,7 +14,7 @@
 2. **Create a virtual environment (optional but recommended):**
    ```powershell
    C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
-
+.\venv\Scripts\pip.exe --version
    .\venv\Scripts\Activate.ps1
    ```
 
@@ -26,8 +26,9 @@ Install rust and vs build tools
 
    cd c:\Users\Indrajeet\OneDrive\Documents\Foundry\Backend
 C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
-
-   .\venv\Scripts\Activate.ps1
+  pip install -r requirements.txt
+.\venv\Scripts\pip.exe --version
+.\venv\Scripts\Activate.ps1
    uvicorn main:app --reload
 
 ## Running the Server
