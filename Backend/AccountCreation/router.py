@@ -705,8 +705,8 @@ async def upsert_analysis(
         if payload.market is not None:
             analysis.market = payload.market.dict()
 
-        if payload.investor_verdict is not None:
-            analysis.investor = {"verdict_text": payload.investor_verdict}
+        if payload.investor is not None:
+            analysis.investor = {"verdict_text": payload.investor}
 
         if payload.strengths is not None:
             analysis.strengths = payload.strengths

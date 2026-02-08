@@ -72,7 +72,7 @@ You must output the analysis in JSON format with the following structure:
       "growth_index": number,        # 0-100 score
       "insight": string
   }},
-  "investor_verdict": string,         # short paragraph
+  "investor": string,         # short paragraph
   "strengths": [string],
   "weaknesses": [string],
   "personas": [
@@ -437,7 +437,7 @@ def idea_analysis_worker():
                     "growth_index": 72,
                     "insight": "The global market for AI-driven customer support automation is large and growing rapidly. Adoption is strongest in mid-sized enterprises that need to reduce support costs while improving response times. Growth is driven by rising demand for 24/7 support and improved customer experience."
                 },
-                "investor_verdict": "This idea has strong potential due to a clear problem and a large addressable market. The product can scale well with recurring revenue, but differentiation will be critical. Investors will want proof of product-market fit and early traction in a specific niche before committing.",
+                "investor": "This idea has strong potential due to a clear problem and a large addressable market. The product can scale well with recurring revenue, but differentiation will be critical. Investors will want proof of product-market fit and early traction in a specific niche before committing.",
                 "strengths": [
                     "Large and growing market with strong demand for automation.",
                     "Recurring revenue model (SaaS) with high scalability.",
@@ -520,7 +520,7 @@ def idea_analysis_worker():
 
             idea.seed_funding_probability = analysis.get("seed_funding_probability", 0)
             idea.market = analysis.get("market", {})
-            idea.investor = analysis.get("investor_verdict", "")
+            idea.investor = analysis.get("investor", "")
             idea.strengths = analysis.get("strengths", [])
             idea.weaknesses = analysis.get("weaknesses", [])
             idea.personas = analysis.get("personas", [])

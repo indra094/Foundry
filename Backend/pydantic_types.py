@@ -108,7 +108,7 @@ class AnalysisPayload(BaseModel):
     market: MarketSchema
     strengths: List[str]
     weaknesses: List[str]
-    investor_verdict: str
+    investor: str
     personas: List[PersonaSchema]
     roadmap: RoadmapSchema
 
