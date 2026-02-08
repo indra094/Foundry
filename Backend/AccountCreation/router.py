@@ -15,6 +15,8 @@ import json
 from fastapi import BackgroundTasks
 from queue import Queue
 from passlib.context import CryptContext
+import secrets
+import string
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -65,12 +67,17 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
     existing_user = db.query(UserModel).filter(UserModel.email == request.get("email")).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-
+    print("[create_user] not existing user:", request.get("email"))
     # 2. Create user id
     timestamp = int(time.time())
-    user_id = f"u_{request.get("org_id")}_{timestamp}"
+    user_id = f"u_{request.get('org_id')}_{timestamp}"
 
-    print(f"[create_user] setting current_org_id = {request.get("org_id")}")
+    # Get password from request or generate a random one
+    password_plain = request.get("password")
+    if not password_plain:
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        password_plain = ''.join(secrets.choice(alphabet) for _ in range(12))
+    password_hash = hash_password(password_plain)
 
     # 3. Create new user
     new_user = UserModel(
@@ -80,20 +87,22 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
         avatar_url=None,
         current_org_id=request.get("org_id"),
         status=request.get("status"),
-        industry_experience=request.get("industry_experience")
+        password_hash=password_hash,
+        industry_experience=request.get("industry_experience", 0)
     )
 
-    upsert_job(db, org_id, "founder_alignment")
 
     db.add(new_user)
 
     try:
         db.commit()
         db.refresh(new_user)
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         db.rollback()
+        print(f"[create_user] failed to create user: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user")
-
+    
+    upsert_job(db, request.get("org_id"), "founder_alignment")
     # 4. Return response
     return UserSchema(
         id=new_user.id,
@@ -111,9 +120,9 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
 @router.post("/signup", response_model=UserSchema)
 async def signup(request: dict, db: Session = Depends(get_db)):
     timestamp = int(time.time())
-    print(f"Signup request received for email: {request.get("email")}")
+    print(f"Signup request received for email: {request.get('email')}")
 
-    existing_user = db.query(UserModel).filter(UserModel.email == request.get("email")).first()
+    existing_user = db.query(UserModel).filter(UserModel.email == request.get('email')).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
