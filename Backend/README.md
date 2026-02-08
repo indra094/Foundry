@@ -19,15 +19,14 @@
    ```
 
 Install rust and vs build tools
-3. **Install dependencies:**
+3. **Install dependencies: after venv**
    ```powershell
    pip install -r requirements.txt
    ```
 
    cd c:\Users\Indrajeet\OneDrive\Documents\Foundry\Backend
 C:\Users\Indrajeet\AppData\Local\Programs\Python\Python313\python.exe -m venv venv
-  pip install -r requirements.txt
-.\venv\Scripts\pip.exe --version
+  
 .\venv\Scripts\Activate.ps1
    uvicorn main:app --reload
 
