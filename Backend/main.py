@@ -34,7 +34,12 @@ async def root():
     return {"message": "Foundry Backend API is running"}
 
 # Include routers
-from AccountCreation import router as account_router
+# Include routers
+from routers import auth, users, workspaces, financials, analysis, dashboard
 
-
-app.include_router(account_router.router)
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(workspaces.router)
+app.include_router(financials.router)
+app.include_router(analysis.router)
+app.include_router(dashboard.router)
