@@ -8,6 +8,7 @@ class UserSchema(BaseModel):
     email: str
     role: Optional[str] = "Founder"
     permission_level: Optional[str] = "ADMIN"
+    industry_experience: Optional[int] = None
     avatarUrl: Optional[str] = None
     current_org_id: Optional[str] = None
     authority: Optional[str] = None

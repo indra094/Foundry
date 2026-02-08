@@ -310,6 +310,10 @@ async def get_user_org_info(
     org_id: str,
     db: Session = Depends(get_db)
 ):
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     member = db.query(OrgMemberModel).filter(
         OrgMemberModel.user_id == user_id,
         OrgMemberModel.org_id == org_id
@@ -324,6 +328,7 @@ async def get_user_org_info(
     #print(member)
     return {
         "user_id": member.user_id,
+        "industry_experience": user.industry_experience,
         "org_id": member.org_id,
         "role": member.role,
         "equity": member.equity,
@@ -624,7 +629,8 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
         fullName=user.full_name,
         email=user.email,
         avatarUrl=user.avatar_url,
-        current_org_id=user.current_org_id
+        current_org_id=user.current_org_id,
+        industry_experience=user.industry_experience
     )
 
 # PATCH /auth/user
@@ -637,7 +643,7 @@ async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     if "fullName" in data: user.full_name = data["fullName"]
     if "avatarUrl" in data: user.avatar_url = data["avatarUrl"]
     if "current_org_id" in data: user.current_org_id = data["current_org_id"]  # 🔥 Allow switching orgs
-    if "industryExperience" in data: user.industry_experience = data["industryExperience"]
+    if "industry_experience" in data: user.industry_experience = data["industry_experience"]
     
     db.commit()
     db.refresh(user)
