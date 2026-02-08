@@ -3,16 +3,17 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional, List
 from sqlalchemy.orm import Session
-from models import User as UserModel, FounderAlignmentModel, DashboardModel, InvestorReadiness, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
+from models import User as UserModel, FounderAlignmentModel, Job, DashboardModel, InvestorReadiness, OrganizationModel, AIIdeaAnalysis, OrgMember as OrgMemberModel, FinancialsModel
 from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel, FinancialsSchema
 from typing import Any, Dict
 from datetime import date
 from database import get_db
 import time
+from models import upsert_job
+import uuid
 import json
 from fastapi import BackgroundTasks
 from queue import Queue
-from workers import founder_alignment_queue, idea_analysis_queue, dashboard_queue, investor_readiness_queue
 from passlib.context import CryptContext
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -82,7 +83,7 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
         industry_experience=request.get("industry_experience")
     )
 
-    founder_alignment_queue.put({"org_id":request.get("org_id")})
+    upsert_job(db, org_id, "founder_alignment")
 
     db.add(new_user)
 
@@ -300,7 +301,7 @@ async def set_user_org_info(req: dict, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update org info")
 
-    founder_alignment_queue.put({"org_id":req.get("org_id")})
+    upsert_job(db, req.get("org_id"), "founder_alignment")
     return {"status": "success", "message": "User info updated"}
 
 
@@ -475,7 +476,7 @@ async def get_workspaces(email: str, db: Session = Depends(get_db)):
 async def update_workspace_and_insights(org_id: str, data: dict, db: Session = Depends(get_db)):
     await update_workspace_service(org_id, data, db)
 
-    idea_analysis_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "idea_analysis")
 
     return await get_workspace_by_id(org_id, db)
 
@@ -506,7 +507,7 @@ async def update_workspace_service(org_id: str, data: dict, db: Session):
 @router.patch("/{org_id}/workspace", response_model=Workspace)
 async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
     org = await update_workspace_service(org_id, data, db)
-    idea_analysis_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "idea_analysis")
     return Workspace(
         id=org.id,
         name=org.name,
@@ -737,7 +738,7 @@ def get_analysis(
 ):
     analysis = db.query(AIIdeaAnalysis).filter_by(workspace_id=org_id).order_by(AIIdeaAnalysis.generated_at.desc()).first()
 
-    size = idea_analysis_queue.qsize()
+    size = db.query(Job).filter(Job.org_id == org_id, Job.type == "idea_analysis").count()
 
     return {
         "analysis": analysis,
@@ -745,9 +746,9 @@ def get_analysis(
     }
 
 @router.post("/{org_id}/idea-analysis", status_code=200)
-async def create_or_update_analysis(org_id: str, background_tasks: BackgroundTasks):
+async def create_or_update_analysis(org_id: str, background_tasks: BackgroundTasks,db: Session = Depends(get_db)):
     
-    idea_analysis_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "idea_analysis")
     #print("post analysis")
 
     return {"status": "ok"}
@@ -762,7 +763,7 @@ async def get_alignment(org_id: str, db: Session = Depends(get_db)):
         .first()
     )
 
-    size = founder_alignment_queue.qsize()
+    size = db.query(Job).filter(Job.org_id == org_id, Job.type == "founder_alignment").count()
 
     return {
         "alignment": alignment,
@@ -771,9 +772,9 @@ async def get_alignment(org_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{org_id}/founder-alignment", status_code=200)
-async def create_or_update_alignment(org_id: str, background_tasks: BackgroundTasks):
+async def create_or_update_alignment(org_id: str, background_tasks: BackgroundTasks,db: Session = Depends(get_db)):
     
-    founder_alignment_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "founder_alignment")
     #print("post alignment")
 
     return {"status": "ok"}
@@ -823,7 +824,7 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
     
     db.commit()
     db.refresh(fin)
-    investor_readiness_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "investor_readiness")
     
     return FinancialsSchema(
         org_id=fin.org_id,
@@ -848,7 +849,7 @@ def get_investor_readiness(
 ):
     investor_readiness = db.query(InvestorReadiness).filter_by(id=org_id).order_by(InvestorReadiness.last_updated.desc()).first()
 
-    size = investor_readiness_queue.qsize()
+    size = db.query(Job).filter(Job.org_id == org_id, Job.type == "investor_readiness").count()
 
     return {
         "investor_readiness": investor_readiness,
@@ -856,9 +857,9 @@ def get_investor_readiness(
     }
 
 @router.post("/{org_id}/investor-readiness", status_code=200)
-async def create_or_update_investor_readiness(org_id: str, background_tasks: BackgroundTasks):
+async def create_or_update_investor_readiness(org_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     
-    investor_readiness_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "investor_readiness")
 
     return {"status": "ok"}
 
@@ -871,16 +872,17 @@ def get_dashboard(
 ):
     dashboard = db.query(DashboardModel).filter_by(id=org_id).order_by(DashboardModel.last_computed_at.desc()).first()
 
-    size = dashboard_queue.qsize()
+    size = db.query(Job).filter(Job.org_id == org_id, Job.type == "dashboard").count()
+    
     return {
         "dashboard": dashboard,
         "size": size
     }
 
 @router.post("/{org_id}/dashboard", status_code=200)
-async def create_or_update_dashboard(org_id: str, background_tasks: BackgroundTasks):
+async def create_or_update_dashboard(org_id: str, db: Session = Depends(get_db)):
     
-    dashboard_queue.put({"org_id":org_id})
+    upsert_job(db, org_id, "dashboard")
 
     return {"status": "ok"}
 

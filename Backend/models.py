@@ -5,6 +5,10 @@ from datetime import date
 import datetime
 from sqlalchemy.orm import relationship
 import uuid
+from sqlalchemy import  UniqueConstraint, Enum
+import datetime
+from sqlalchemy.orm import Session
+import enum
 
 def gen_id():
     return str(uuid.uuid4())
@@ -275,3 +279,43 @@ class DashboardModel(Base):
     last_computed_at = Column(DateTime, default=datetime.datetime.utcnow)
     model_version = Column(String, nullable=True)
 
+
+def gen_id():
+    return str(uuid.uuid4())
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id = Column(String, primary_key=True, default=gen_id, index=True)
+    org_id = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # restricts values
+    #dashboard = "dashboard"
+    #investor_readiness = "investor_readiness"
+    #founder_alignment = "founder_alignment"
+    #idea_analysis = "idea_analysis"
+    
+    created_time = Column(DateTime, default=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('org_id', 'type', name='uix_org_type'),
+    )
+
+
+def gen_id():
+    return str(uuid.uuid4())
+
+def upsert_job(db: Session, org_id: str, job_type: str) -> Job:
+    """
+    Deletes any existing Job with the same (org_id, type) and creates a new one.
+    """
+    # Delete existing job with same org_id and type
+    db.query(Job).filter(Job.org_id == org_id, Job.type == job_type).delete()
+    db.commit()  # commit deletion
+
+    # Create new job
+    new_job = Job(id=gen_id(), org_id=org_id, type=job_type, created_time=datetime.datetime.utcnow())
+    db.add(new_job)
+    db.commit()
+    db.refresh(new_job)
+
+    return new_job

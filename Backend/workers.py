@@ -2,21 +2,19 @@ from models import InvestorReadiness
 import threading
 from queue import Queue
 import time
-from models import User as UserModel, AIIdeaAnalysis,FinancialsModel, FounderAlignmentModel, OrganizationModel as OrgModel, OrgMember as OrgMemberModel
+from sqlalchemy import asc
+
+from models import User as UserModel,Job, AIIdeaAnalysis,FinancialsModel, FounderAlignmentModel, OrganizationModel as OrgModel, OrgMember as OrgMemberModel
 from pydantic_types import UserSchema, Workspace, UserOrgInfo, LoginRequest, CreateUserRequest, SetUserOrgInfoRequest, SetOnboardingRequest, MarketSchema, PersonaSchema, MilestoneSchema, RoadmapSchema, AnalysisPayload, FounderAlignmentResponse, FounderAlignmentResponseModel
 import json
 import os
+from models import upsert_job
 from google import genai
 from google.genai import types
 from database import SessionLocal
 from models import DashboardModel
 import datetime
 
-
-founder_alignment_queue = Queue()
-idea_analysis_queue = Queue()
-investor_readiness_queue = Queue()
-dashboard_queue = Queue()
 
 job_status = {}
 
@@ -232,20 +230,28 @@ Guidelines:
 
 def founder_alignment_worker():
     while True:
-        job = founder_alignment_queue.get()
-        
-
-        org_id = job["org_id"]
-        job_id = org_id  # 1 job per org
-
-        # ✅ initialize job status safely
-        job_status[job_id] = {
-            "status": "RUNNING"
-        }
-
         db = SessionLocal()
 
+        job = None
+
         try:
+            # ✅ Pick the oldest pending job of type 'founder_alignment'
+            job = (
+                db.query(Job)
+                .filter(Job.type == "founder_alignment")
+                .order_by(asc(Job.created_time))
+                .first()
+            )
+
+            if not job:
+                time.sleep(1)  # No job, wait a bit
+                continue
+
+            org_id = job.org_id
+            job_id = job.id
+
+            # Update job status
+            job_status[job_id] = {"status": "RUNNING"}
 
             users = (
                 db.query(UserModel, OrgMemberModel)
@@ -348,38 +354,63 @@ def founder_alignment_worker():
             alignment.org_id = org_id
             
             db.commit()
-            dashboard_queue.put({"org_id":org_id})
+            # -------------------------
+            # 🟢 Call upsert_job for dashboard instead of queue
+            # -------------------------
+            upsert_job(db, org_id, "dashboard")
 
+            # Mark job as completed
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
-                "message": "Alignment created/updated",
-                "alignment_id": alignment.id
+                "message": "Founder alignment created/updated",
+                "org_id": org_id
             }
 
+            # -------------------------
+            # 🗑 Delete job from DB
+            # -------------------------
+            try:
+                db.delete(job)
+                db.commit()
+            except Exception:
+                db.rollback()  # Ignore deletion failure
+
         except Exception as e:
-            print("Exception: ", str(e))
             db.rollback()
-            job_status[job_id]["status"] = "FAILED"
-            job_status[job_id]["error"] = str(e)
+            if job:
+                job_status[job_id]["status"] = "FAILED"
+                job_status[job_id]["error"] = str(e)
+            print("founder alignment Exception:", str(e))
 
         finally:
             db.close()
-            founder_alignment_queue.task_done()
 
 def idea_analysis_worker():
     while True:
-        job = idea_analysis_queue.get()
-
-        org_id = job["org_id"]
-        job_id = org_id  # 1 job per org
-
-        job_status[job_id] = {
-            "status": "RUNNING"
-        }
-
+        
         db = SessionLocal()
 
+        job = None
+
         try:
+            # ✅ Pick the oldest pending job of type 'idea_analysis'
+            job = (
+                db.query(Job)
+                .filter(Job.type == "idea_analysis")
+                .order_by(asc(Job.created_time))
+                .first()
+            )
+
+            if not job:
+                time.sleep(1)  # No job, wait a bit
+                continue
+
+            org_id = job.org_id
+            job_id = job.id
+
+            # Update job status
+            job_status[job_id] = {"status": "RUNNING"}
+
             # Fetch org info
             org = db.query(OrgModel).filter_by(id=org_id).first()
             if not org:
@@ -497,23 +528,36 @@ def idea_analysis_worker():
             idea.version = 1
 
             db.commit()
-            dashboard_queue.put({"org_id":org_id})
+            # -------------------------
+            # 🟢 Call upsert_job for dashboard instead of queue
+            # -------------------------
+            upsert_job(db, org_id, "dashboard")
 
+            # Mark job as completed
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
                 "message": "Idea analysis created/updated",
                 "org_id": org_id
             }
 
+            # -------------------------
+            # 🗑 Delete job from DB
+            # -------------------------
+            try:
+                db.delete(job)
+                db.commit()
+            except Exception:
+                db.rollback()  # Ignore deletion failure
+
         except Exception as e:
-            print("idea analysis Exception: ", str(e))
             db.rollback()
-            job_status[job_id]["status"] = "FAILED"
-            job_status[job_id]["error"] = str(e)
+            if job:
+                job_status[job_id]["status"] = "FAILED"
+                job_status[job_id]["error"] = str(e)
+            print("idea analysis Exception:", str(e))
 
         finally:
             db.close()
-            idea_analysis_queue.task_done()
 
 
 def investor_readiness_worker():
@@ -521,18 +565,27 @@ def investor_readiness_worker():
     Worker function to process investor readiness analysis tasks.
     """
     while True:
-        job = investor_readiness_queue.get()
-        org_id = job["org_id"]
-        job_id = org_id  # 1 job per org
-
-        # ✅ initialize job status safely
-        job_status[job_id] = {
-            "status": "RUNNING"
-        }
-
         db = SessionLocal()
+        job = None
 
         try:
+            # ✅ Pick the oldest pending job of type 'investor_readiness'
+            job = (
+                db.query(Job)
+                .filter(Job.type == "investor_readiness")
+                .order_by(asc(Job.created_time))
+                .first()
+            )
+
+            if not job:
+                time.sleep(1)  # No job, wait a bit
+                continue
+
+            org_id = job.org_id
+            job_id = job.id
+            job_status[job_id] = {"status": "RUNNING"}
+
+            # Update job status
             # Process the job
             print(f"Processing investor readiness analysis for job {job_id}")
             org = db.query(OrgModel).filter_by(id=org_id).first()
@@ -640,7 +693,10 @@ def investor_readiness_worker():
             insights.pushbacks = analysis.get("pushbacks", [])
             insights.fixes = analysis.get("fixes", [])
             insights.demands = analysis.get("demands", [])
-            insights.simulated_reaction = analysis.get("simulated_reaction", []) * 100
+            insights.simulated_reaction = [
+                {"label": item["label"], "value": item["value"] * 100} 
+                for item in analysis.get("simulated_reaction", [])
+            ]
             insights.investor_type = analysis.get("investor_type", {})
             insights.recommendation = analysis.get("recommendation", {})
             insights.summary_insight = analysis.get("summary_insight", "")
@@ -651,40 +707,63 @@ def investor_readiness_worker():
 
             db.commit()
 
-            dashboard_queue.put({"org_id":org_id})
-            
-            # Update job status
+            # -------------------------
+            # 🟢 Call upsert_job for dashboard instead of queue
+            # -------------------------
+            upsert_job(db, org_id, "dashboard")
+
+            # Mark job as completed
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
-                "message": "Investor readiness analysis completed",
-                "job_id": job_id
+                "message": "Investor readiness analysis created/updated",
+                "org_id": org_id
             }
 
+            # -------------------------
+            # 🗑 Delete job from DB
+            # -------------------------
+            try:
+                db.delete(job)
+                db.commit()
+            except Exception:
+                db.rollback()  # Ignore deletion failure
+
+
         except Exception as e:
-            print("Investor readiness Exception: ", str(e))
-            job_status[job_id]["status"] = "FAILED"
-            job_status[job_id]["error"] = str(e)
+            db.rollback()
+            if job:
+                job_status[job_id]["status"] = "FAILED"
+                job_status[job_id]["error"] = str(e)
+            print("investor readiness Exception:", str(e))
 
         finally:
-            investor_readiness_queue.task_done()
+            db.close()
 
 def dashboard_worker():
     """
     Worker function to process dashboard data.
     """
     while True:
-        job = dashboard_queue.get()
-        org_id = job["org_id"]
-        job_id = org_id  # 1 job per org
-
-        # ✅ initialize job status safely
-        job_status[job_id] = {
-            "status": "RUNNING"
-        }
-
         db = SessionLocal()
+        job = None
 
         try:
+            # ✅ Pick the oldest pending job of type 'investor_readiness'
+            job = (
+                db.query(Job)
+                .filter(Job.type == "dashboard")
+                .order_by(asc(Job.created_time))
+                .first()
+            )
+
+            if not job:
+                time.sleep(1)  # No job, wait a bit
+                continue
+
+            org_id = job.org_id
+            job_id = job.id
+            job_status[job_id] = {"status": "RUNNING"}
+
             # Process the job
             org = db.query(OrgModel).filter_by(id=org_id).first()
             if not org:
@@ -779,20 +858,31 @@ def dashboard_worker():
 
             db.commit()
             
-            # Update job status
+            # Mark job as completed
             job_status[job_id]["status"] = "COMPLETED"
             job_status[job_id]["result"] = {
-                "message": "Investor readiness analysis completed",
-                "job_id": job_id
+                "message": "Dashboard analysis created/updated",
+                "org_id": org_id
             }
 
+            # -------------------------
+            # 🗑 Delete job from DB
+            # -------------------------
+            try:
+                db.delete(job)
+                db.commit()
+            except Exception:
+                db.rollback()  # Ignore deletion failure
+
         except Exception as e:
-            print("Dashboard Exception: ", str(e))
-            job_status[job_id]["status"] = "FAILED"
-            job_status[job_id]["error"] = str(e)
+            db.rollback()
+            if job:
+                job_status[job_id]["status"] = "FAILED"
+                job_status[job_id]["error"] = str(e)
+            print("Dashboard analysis Exception:", str(e))
 
         finally:
-            dashboard_queue.task_done()
+            db.close()
 
 
 
