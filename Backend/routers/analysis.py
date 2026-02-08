@@ -6,7 +6,7 @@ from models import AIIdeaAnalysis, Job, FounderAlignmentModel, InvestorReadiness
 from pydantic_types import AnalysisPayload, FounderAlignmentResponseModel
 from typing import Optional
 
-router = APIRouter(prefix="/auth", tags=["Analysis"])
+router = APIRouter(prefix="/api/v1", tags=["Analysis"])
 
 async def upsert_analysis(
     org_id: str,
@@ -55,7 +55,7 @@ async def upsert_analysis(
             detail="Database error while saving analysis."
         )
 
-# GET /auth/{org_id}/idea-analysis
+# GET /api/v1/{org_id}/idea-analysis
 @router.get("/{org_id}/idea-analysis")
 def get_analysis(
     org_id: str,
@@ -105,7 +105,7 @@ async def create_or_update_alignment(org_id: str, background_tasks: BackgroundTa
     return {"status": "ok"}
 
 
-# GET /auth/{org_id}/investor-readiness
+# GET /api/v1/{org_id}/investor-readiness
 @router.get("/{org_id}/investor-readiness")
 def get_investor_readiness(
     org_id: str,

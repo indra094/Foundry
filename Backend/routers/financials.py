@@ -5,7 +5,7 @@ from models import FinancialsModel, upsert_job
 from pydantic_types import FinancialsSchema
 import datetime
 
-router = APIRouter(prefix="/auth", tags=["Financials"])
+router = APIRouter(prefix="/api/v1", tags=["Financials"])
 
 @router.get("/{org_id}/financials", response_model=FinancialsSchema)
 def get_financials(org_id: str, db: Session = Depends(get_db)):

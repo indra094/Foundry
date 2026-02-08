@@ -8,9 +8,9 @@ import time
 import json
 from datetime import date
 
-router = APIRouter(prefix="/auth", tags=["Workspaces"])
+router = APIRouter(prefix="/api/v1", tags=["Workspaces"])
 
-# POST /auth/workspace
+# POST /api/v1/workspace
 @router.post("/workspace", response_model=Workspace)
 async def create_org(data: dict, db: Session = Depends(get_db)):
     # 1. Find user
@@ -90,7 +90,7 @@ async def create_org(data: dict, db: Session = Depends(get_db)):
     )
 
 
-# GET /auth/{org_id}/set-onboarding
+# GET /api/v1/{org_id}/set-onboarding
 @router.post("/{org_id}/set-onboarding", response_model=Workspace)
 def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(OrganizationModel.id == org_id).first()
@@ -102,7 +102,7 @@ def set_onboarding(org_id: str, req: SetOnboardingRequest, db: Session = Depends
     db.refresh(org)
     return org
 
-# GET /auth/workspace/{org_id}
+# GET /api/v1/workspace/{org_id}
 @router.get("/workspace/{org_id}", response_model=Workspace)
 async def get_workspace_by_id(org_id: str, db: Session = Depends(get_db)):
     org = db.query(OrganizationModel).filter(
@@ -126,7 +126,7 @@ async def get_workspace_by_id(org_id: str, db: Session = Depends(get_db)):
     )
 
 
-# GET /auth/workspace
+# GET /api/v1/workspace
 @router.get("/workspace", response_model=Workspace)
 async def get_workspace(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -155,7 +155,7 @@ async def get_workspace(email: str, db: Session = Depends(get_db)):
         onboarding_step=org.onboarding_step
     )
 
-# GET /auth/workspaces
+# GET /api/v1/workspaces
 @router.get("/workspaces", response_model=List[Workspace])
 async def get_workspaces(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -201,7 +201,7 @@ async def update_workspace_service(org_id: str, data: dict, db: Session):
     db.refresh(org)
     return org
 
-# PATCH /auth/{org_id}/workspace-and-insights
+# PATCH /api/v1/{org_id}/workspace-and-insights
 @router.patch("/{org_id}/workspace-and-insights", response_model=Workspace)
 async def update_workspace_and_insights(org_id: str, data: dict, db: Session = Depends(get_db)):
     await update_workspace_service(org_id, data, db)
@@ -211,7 +211,7 @@ async def update_workspace_and_insights(org_id: str, data: dict, db: Session = D
     return await get_workspace_by_id(org_id, db)
 
 
-# PATCH /auth/{org_id}/workspace
+# PATCH /api/v1/{org_id}/workspace
 @router.patch("/{org_id}/workspace", response_model=Workspace)
 async def update_workspace(org_id: str, data: dict, db: Session = Depends(get_db)):
     org = await update_workspace_service(org_id, data, db)

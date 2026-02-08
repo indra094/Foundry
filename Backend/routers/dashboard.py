@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import DashboardModel, Job, upsert_job
 
-router = APIRouter(prefix="/auth", tags=["Dashboard"])
+router = APIRouter(prefix="/api/v1", tags=["Dashboard"])
 
-# GET /auth/{org_id}/dashboard
+# GET /api/v1/{org_id}/dashboard
 @router.get("/{org_id}/dashboard")
 def get_dashboard(
     org_id: str,

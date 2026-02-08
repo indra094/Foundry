@@ -6,7 +6,7 @@ from pydantic_types import UserSchema, LoginRequest
 from passlib.context import CryptContext
 import time
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(prefix="/api/v1", tags=["Auth"])
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
@@ -17,7 +17,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-# POST /auth/login
+# POST /api/v1/login
 @router.post("/login", response_model=UserSchema)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     print(f"Login request received for email: {request.email}")
@@ -47,7 +47,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         status=member.status if member else None
     )
 
-# POST /auth/signup
+# POST /api/v1/signup
 @router.post("/signup", response_model=UserSchema)
 async def signup(request: dict, db: Session = Depends(get_db)):
     timestamp = int(time.time())
@@ -94,7 +94,7 @@ async def signup(request: dict, db: Session = Depends(get_db)):
         industry_experience=new_user.industry_experience
     )
 
-# POST /auth/google
+# POST /api/v1/google
 @router.post("/google", response_model=UserSchema)
 async def google_signup(email: str, db: Session = Depends(get_db)):
     # Enforce database check - no hardcoded fallbacks

@@ -12,14 +12,14 @@ import json
 from datetime import date
 from passlib.context import CryptContext
 
-router = APIRouter(prefix="/auth", tags=["Users"])
+router = APIRouter(prefix="/api/v1", tags=["Users"])
 
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-# POST /auth/user
+# POST /api/v1/user
 @router.post("/user", response_model=UserSchema)
 async def create_user(request: dict, db: Session = Depends(get_db)):
     # 1. Validate duplicate email
@@ -75,7 +75,7 @@ async def create_user(request: dict, db: Session = Depends(get_db)):
     )
 
 
-# POST /auth/set-user-org-info
+# POST /api/v1/set-user-org-info
 @router.post("/set-user-org-info")
 async def set_user_org_info(req: dict, db: Session = Depends(get_db)):
     # Find the membership
@@ -183,7 +183,7 @@ async def get_user_org_info(
         "permission_level": member.permission_level
     }
 
-# GET /auth/{org_id}/users
+# GET /api/v1/{org_id}/users
 @router.get("/{org_id}/users", response_model=List[UserSchema])
 async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
     users = (
@@ -225,7 +225,7 @@ async def get_users_for_org(org_id: str, db: Session = Depends(get_db)):
     return result
 
 
-# GET /auth/UserOrgInfo
+# GET /api/v1/UserOrgInfo
 @router.get("/UserOrgInfo", response_model=UserOrgInfo)
 async def get_my_role(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -256,7 +256,7 @@ async def get_my_role(email: str, db: Session = Depends(get_db)):
         status=member.status
     )
 
-# PATCH /auth/UserOrgInfo
+# PATCH /api/v1/UserOrgInfo
 @router.patch("/UserOrgInfo", response_model=UserOrgInfo)
 async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -303,7 +303,7 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
     )
 
 
-# GET /auth/user-by-email/{email}
+# GET /api/v1/user-by-email/{email}
 @router.get("/user-by-email/{email}", response_model=UserSchema)
 async def get_user_by_email(email: str, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
@@ -322,7 +322,7 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
         industry_experience=user.industry_experience
     )
 
-# PATCH /auth/user
+# PATCH /api/v1/user
 @router.patch("/user", response_model=UserSchema)
 async def update_user(email: str, data: dict, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == email).first()
