@@ -84,7 +84,7 @@ graph TD
     A[Frontend: React & TS]
     C[Team, Idea, Financial, and dashboard related Data Structuring]
     D[Feed data into Gemini 3 Reasoning Layer]
-    E[Scoring & recommendation Engine]
+    E[Scoring & recommendation Engine with a Python backend]
 
     %% Connections
     A -->|User Inputs startup data| C
