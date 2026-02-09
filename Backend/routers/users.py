@@ -302,6 +302,39 @@ async def update_my_role(email: str, data: dict, db: Session = Depends(get_db)):
         status=member.status
     )
 
+# DELETE /api/v1/org/{org_id}/user-by-email/{email}
+@router.delete("/org/{org_id}/user-by-email/{email}")
+async def delete_user_from_org_by_email(org_id: str, email: str, db: Session = Depends(get_db)):
+    # Find the user by email
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Find the membership
+    member = db.query(OrgMemberModel).filter(
+        OrgMemberModel.user_id == user.id,
+        OrgMemberModel.org_id == org_id
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="User is not a member of this organization")
+
+    try:
+        # Delete the membership
+        db.delete(member)
+
+        # Optional: clear current_org_id if it matches
+        if user.current_org_id == org_id:
+            user.current_org_id = None
+            db.add(user)
+
+        db.commit()
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete user from org: {str(e)}")
+    upsert_job(db, org_id, "founder_alignment")
+    return {"status": "success", "message": f"User {email} removed from organization {org_id}"}
+
+
 
 # GET /api/v1/user-by-email/{email}
 @router.get("/user-by-email/{email}", response_model=UserSchema)
