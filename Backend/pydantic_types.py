@@ -147,6 +147,7 @@ class FinancialsSchema(BaseModel):
     customers_in_pipeline: Optional[int] = None
     data_confidence: Optional[str] = "Rough"
     last_updated: Optional[datetime] = None
+    expense_pattern: Optional[int] = None
 
     class Config:
         orm_mode = True

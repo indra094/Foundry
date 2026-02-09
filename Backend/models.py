@@ -195,6 +195,7 @@ class FinancialsModel(Base):
     
     cash_in_bank = Column(Integer, nullable=True)
     monthly_burn = Column(Integer, nullable=True)
+    expense_pattern = Column(Integer, nullable=True) # Fixed, Variable, Mix
     cost_structure = Column(String, nullable=True) # Fixed, Variable, Mix
     
     pricing_model = Column(String, nullable=True) # Subscription, Usage, One-time, Enterprise

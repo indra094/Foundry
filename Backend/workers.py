@@ -320,11 +320,11 @@ def founder_alignment_worker():
                 "primary_risk": "CTO under-commitment",
                 "insight": "The founder team has a strong vision but a core execution risk exists due to the CTO’s part-time commitment and high equity. This is likely to cause conflict during scaling, hiring, and product delivery."
             }
-
-            #analysis = query_model(
-            #    prompt=prompt,
-            #    model="gemini-3-pro-preview"
-            #)
+            print("in founder alignment")
+            analysis = query_model(
+               prompt=prompt,
+               model="gemini-3-pro-preview"
+            )
 
             
 
@@ -500,10 +500,11 @@ def idea_analysis_worker():
             # -------------------------
             # 🧠 Call the model here
             # -------------------------
-            #analysis = query_model(
-            #    prompt=prompt,
-            #    model="gemini-3-pro-preview"
-            #)
+            print("in idea analysis")
+            analysis = query_model(
+               prompt=prompt,
+               model="gemini-3-pro-preview"
+            )
 
             # If your model returns a dict, use it directly
             # Otherwise parse JSON here
@@ -643,9 +644,9 @@ def investor_readiness_worker():
                     }
                 ],
                 "simulated_reaction": [
-                    {"label": "Reject", "value": 0.7},
-                    {"label": "Soft Interest", "value": 0.2},
-                    {"label": "Fund", "value": 0.1}
+                    {"label": "Reject", "value": 70},
+                    {"label": "Soft Interest", "value": 20},
+                    {"label": "Fund", "value": 10}
                 ],
                 "investor_type": {
                     "primary": "VC",
@@ -671,10 +672,11 @@ def investor_readiness_worker():
             # -------------------------
             # 🧠 Call the model here
             # -------------------------
-            #analysis = query_model(
-            #    prompt=prompt,
-            #    model="gemini-3-pro-preview"
-            #)
+            print("in investor readiness")
+            analysis = query_model(
+               prompt=prompt,
+               model="gemini-3-pro-preview"
+            )
 
             # If your model returns a dict, use it directly
             # Otherwise parse JSON here
@@ -694,7 +696,7 @@ def investor_readiness_worker():
             insights.fixes = analysis.get("fixes", [])
             insights.demands = analysis.get("demands", [])
             insights.simulated_reaction = [
-                {"label": item["label"], "value": item["value"] * 100} 
+                {"label": item["label"], "value": item["value"]} 
                 for item in analysis.get("simulated_reaction", [])
             ]
             insights.investor_type = analysis.get("investor_type", {})
@@ -826,10 +828,11 @@ def dashboard_worker():
             # -------------------------
             # 🧠 Call the model here
             # -------------------------
-            #dashboard_data = query_model(
-            #    prompt=prompt,
-            #    model="gemini-3-pro-preview"
-            #)
+            print("in dashboard")
+            dashboard_data = query_model(
+               prompt=prompt,
+               model="gemini-3-pro-preview"
+            )
 
             # If your model returns a dict, use it directly
             # Otherwise parse JSON here
@@ -907,6 +910,7 @@ def build_prompt_from_org_and_financials(org, financials):
     monthly_revenue = getattr(financials, "monthly_revenue", "Not specified")
     revenue_trend = getattr(financials, "revenue_trend", "Not specified")
     revenue_stage = getattr(financials, "revenue_stage", "Not specified")
+    expense_pattern = getattr(financials, "expense_pattern", "Not specified")
     
     cash_in_bank = getattr(financials, "cash_in_bank", "Not specified")
     monthly_burn = getattr(financials, "monthly_burn", "Not specified")
@@ -923,6 +927,7 @@ def build_prompt_from_org_and_financials(org, financials):
 You are an expert startup analyst with experience in venture capital and early-stage investments.
 
 Analyze the following startup information and produce a detailed investor insights report. Be opinionated, realistic, and precise.
+Judge financials based on the startup stage.
 
 Startup Details:
 - Startup Name: {name}
@@ -935,15 +940,16 @@ Startup Details:
 - Solution by Startup: {solution_statement}
 
 Financial Details:
-- Monthly Revenue: {monthly_revenue}
+- Current Monthly Revenue: {monthly_revenue}
 - Revenue Trend: {revenue_trend}
 - Revenue Stage: {revenue_stage}
-- Cash in Bank: {cash_in_bank}
-- Monthly Burn: {monthly_burn}
-- Cost Structure: {cost_structure}
-- Pricing Model: {pricing_model}
-- Price per Customer: {price_per_customer}
-- Customers in Pipeline: {customers_in_pipeline}
+- Estimated Cash in Bank: {cash_in_bank}
+- Estimated Monthly Burn: {monthly_burn}
+- Expenses fixedness (in percentage): {expense_pattern}
+- Estimated Cost Structure: {cost_structure}
+- Estimated Pricing Model: {pricing_model}
+- Estimated Monthly revenue per Customer: {price_per_customer}
+- Estimated Customers in Pipeline per month: {customers_in_pipeline}
 - Data Confidence: {data_confidence}
 
 Output your analysis strictly as **JSON** matching this TypeScript interface:
@@ -995,7 +1001,7 @@ interface InvestorReadinessData {{
 
 Guidelines:
 - Provide realistic investor-style feedback with reasoning.
-- readiness_score should be 0.0–1.0.
+- readiness_score should be 0.0–1.0 and indicate how ready is the startup for any stage of investment.
 - Include 2–3 pushbacks with 2–4 points each.
 - Provide 3–5 actionable fixes.
 - Include 2–4 demands, using the allowed icon values.
@@ -1063,6 +1069,7 @@ def build_financials_json(fin: FinancialsModel):
             "cash_in_bank": 0,
             "monthly_burn": 0,
             "runway_months": 0,
+            "expense_pattern": "None",
             "data_confidence": "None"
         }
     return {
@@ -1074,6 +1081,7 @@ def build_financials_json(fin: FinancialsModel):
             fin.cash_in_bank // fin.monthly_burn
             if fin.cash_in_bank and fin.monthly_burn else None
         ),
+        "expense_pattern": fin.expense_pattern,
         "data_confidence": fin.data_confidence
     }
 

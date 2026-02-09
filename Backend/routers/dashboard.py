@@ -22,7 +22,7 @@ def get_dashboard(
 
 @router.post("/{org_id}/dashboard", status_code=200)
 async def create_or_update_dashboard(org_id: str, db: Session = Depends(get_db)):
-    
+    print ("add job for dashboard")
     upsert_job(db, org_id, "dashboard")
 
     return {"status": "ok"}

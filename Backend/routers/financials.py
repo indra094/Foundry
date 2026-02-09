@@ -25,6 +25,7 @@ def get_financials(org_id: str, db: Session = Depends(get_db)):
         price_per_customer=fin.price_per_customer,
         customers_in_pipeline=fin.customers_in_pipeline,
         data_confidence=fin.data_confidence,
+        expense_pattern=fin.expense_pattern,
         last_updated=fin.last_updated
     )
 
@@ -34,6 +35,7 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
     if not fin:
         fin = FinancialsModel(org_id=org_id)
         db.add(fin)
+    
     
     fin.monthly_revenue = data.monthly_revenue
     fin.revenue_trend = data.revenue_trend
@@ -45,7 +47,9 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
     fin.price_per_customer = data.price_per_customer
     fin.customers_in_pipeline = data.customers_in_pipeline
     fin.data_confidence = data.data_confidence
+    fin.expense_pattern = data.expense_pattern
     fin.last_updated = datetime.datetime.utcnow()
+    
     
     db.commit()
     db.refresh(fin)
@@ -63,5 +67,6 @@ def update_financials(org_id: str, data: FinancialsSchema, db: Session = Depends
         price_per_customer=fin.price_per_customer,
         customers_in_pipeline=fin.customers_in_pipeline,
         data_confidence=fin.data_confidence,
+        expense_pattern=fin.expense_pattern,
         last_updated=fin.last_updated
     )
