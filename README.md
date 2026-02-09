@@ -1,6 +1,104 @@
-# Foundry System Architecture
 
-This document maps the high-level architecture of **Foundry**, designed to be scalable, modular, and AI-native. This architecture supports real-time feedback loops between the user's input and the platform's AI intelligence engine.
+
+## 🚀 Getting Started
+
+Follow these instructions to set up and run the Foundry platform locally on Windows.
+
+### Prerequisites (Windows)
+Ensure you have the following installed before proceeding:
+
+1.  **Python** (3.10+)
+2.  **Node.js** (v18+)
+3.  **Rust** (Required for compiling certain Python dependencies)
+    -   Download and install from [rustup.rs](https://rustup.rs/)
+4.  **Visual Studio Build Tools** (Required for C++ extensions in Python packages)
+    -   Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+    -   During installation, select **"Desktop development with C++"**.
+
+### 1. Environment Setup
+
+Create a `.env` file in the **root** directory (`/Foundry/.env`) and add your API keys:
+
+```ini
+GEMINI_API_KEY=your_google_gemini_api_key
+```
+
+### 2. Backend Setup
+The backend is built with FastAPI and handles all data processing and AI logic.
+
+Open a new terminal (PowerShell or Command Prompt):
+
+```powershell
+# Navigate to the backend directory
+cd Backend
+
+# Create a virtual environment
+python -m venv venv
+
+# Activate the virtual environment
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the database migrations (if applicable) & Start the server
+# The server will start on http://localhost:8000
+uvicorn main:app --reload
+```
+
+### 3. Frontend Setup
+The frontend is a React application built with Vite.
+
+Open a **separate** terminal window:
+
+```powershell
+# Navigate to the frontend directory
+cd Auto
+
+# Install Node.js dependencies
+npm install
+
+# Start the development server
+# The app will run on http://localhost:5173
+npm run dev
+```
+
+### 4. Running
+Once both servers are running:
+-   **Frontend**: Open [http://localhost:5173
+
+
+
+### Foundry System Architecture
+
+This document also maps the high-level architecture of **Foundry**, designed to be scalable, modular, and AI-native. This architecture supports real-time feedback loops between the user's input and the platform's AI intelligence engine.
+
+
+
+### Simple High-Level Flow
+**"Gemini reasons. Foundry decides."**
+
+```mermaid
+graph TD
+    %% Nodes
+    A[Frontend: React & TS]
+    C[Team, Idea, Financial, and dashboard related Data Structuring]
+    D[Feed data into Gemini 3 Reasoning Layer]
+    E[Scoring & recommendation Engine]
+
+    %% Connections
+    A -->|User Inputs startup data| C
+    C -->|Create prompt based on structured data| D
+    D -->|Synthesized Insights| E
+    E -->|Validated Analysis| A
+
+    %% Styling
+    classDef box fill:#ffffff,stroke:#5f6368,stroke-width:2px,color:#202124,rx:10,ry:10;
+    classDef gemini fill:#e8f0fe,stroke:#1a73e8,stroke-width:3px,color:#1a73e8,rx:10,ry:10;
+
+    class A,B,C,E box;
+    class D gemini;
+```
 
 ## System Overview Diagram
 
@@ -121,72 +219,5 @@ The database schema (`Organization`, `OrgMember`, `Financials`, `ReadinessGate`)
 3.  **Risk Detection**: AI identifies specific conflicts (e.g., "CEO expects 80h/week, CTO only committing 20h/week").
 4.  **Actionable Advice**: System generates a unified "Alignment Score" and specific mediation steps.
 
----
-
-## 🚀 Getting Started
-
-Follow these instructions to set up and run the Foundry platform locally on Windows.
-
-### Prerequisites (Windows)
-Ensure you have the following installed before proceeding:
-
-1.  **Python** (3.10+)
-2.  **Node.js** (v18+)
-3.  **Rust** (Required for compiling certain Python dependencies)
-    -   Download and install from [rustup.rs](https://rustup.rs/)
-4.  **Visual Studio Build Tools** (Required for C++ extensions in Python packages)
-    -   Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-    -   During installation, select **"Desktop development with C++"**.
-
-### 1. Environment Setup
-
-Create a `.env` file in the **root** directory (`/Foundry/.env`) and add your API keys:
-
-```ini
-GEMINI_API_KEY=your_google_gemini_api_key
-```
-
-### 2. Backend Setup
-The backend is built with FastAPI and handles all data processing and AI logic.
-
-Open a new terminal (PowerShell or Command Prompt):
-
-```powershell
-# Navigate to the backend directory
-cd Backend
-
-# Create a virtual environment
-python -m venv venv
-
-# Activate the virtual environment
-.\venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the database migrations (if applicable) & Start the server
-# The server will start on http://localhost:8000
-uvicorn main:app --reload
-```
-
-### 3. Frontend Setup
-The frontend is a React application built with Vite.
-
-Open a **separate** terminal window:
-
-```powershell
-# Navigate to the frontend directory
-cd Auto
-
-# Install Node.js dependencies
-npm install
-
-# Start the development server
-# The app will run on http://localhost:5173
-npm run dev
-```
-
-### 4. Running
-Once both servers are running:
--   **Frontend**: Open [http://localhost:5173](http://localhost:5173) in your browser.
+---](http://localhost:5173) in your browser.
 -   **Backend API Docs**: Open [http://localhost:8000/docs](http://localhost:8000/docs) to explore the API via Swagger UI.
