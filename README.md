@@ -1,4 +1,4 @@
-
+For serverless version, refer https://github.com/indra094/FoundryWithoutBackend
 
 ## 🚀 Getting Started
 
